@@ -23,6 +23,7 @@
     "build:backend": "npm run build --workspace backend",
     "build:frontend": "npm run build --workspace frontend",
     "build:pwa": "cross-env VITE_FORCE_MOBILE_API=true npm run build --workspace frontend",
+    "build:web": "npm run build --workspace frontend",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:backend && npm run build:frontend && npm run build:electron",
     "preview:pwa": "cross-env PERSONAL_CONTROL_WEB_PORT=5175 npm run preview --workspace frontend -- --host 127.0.0.1 --port 5175",

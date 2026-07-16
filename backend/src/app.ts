@@ -12,6 +12,7 @@ import { apiRouter } from "./routes";
 import { errorHandler, notFoundHandler } from "./middleware/error";
 import { runMigrations } from "./lib/migrate";
 import { seedDefaults } from "./seed";
+import { attachUser } from "./modules/auth/auth.middleware";
 
 export interface CreateAppOptions {
   /** Directorio del build del frontend a servir (solo producción). */
@@ -28,6 +29,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     res.json({ ok: true, app: "Personal Control" });
   });
 
+  app.use("/api", attachUser);
   app.use("/api", apiRouter());
 
   // En producción, Electron sirve el build de Vite desde el mismo servidor.

@@ -4,6 +4,7 @@
  */
 import { Router } from "express";
 import { accountsRouter } from "./modules/accounts/accounts.router";
+import { authRouter } from "./modules/auth/auth.router";
 import { backupsRouter } from "./modules/backups/backups.router";
 import { calendarRouter } from "./modules/calendar/calendar.router";
 import { categoriesRouter } from "./modules/categories/categories.router";
@@ -19,9 +20,12 @@ import { searchRouter } from "./modules/search/search.router";
 import { settingsRouter } from "./modules/settings/settings.router";
 import { statsRouter } from "./modules/stats/stats.router";
 import { worklogsRouter } from "./modules/worklogs/worklogs.router";
+import { usersRouter } from "./modules/users/users.router";
 
 export function apiRouter(): Router {
   const router = Router();
+  router.use("/auth", authRouter);
+  router.use("/users", usersRouter);
   router.use("/accounts", accountsRouter);
   router.use("/backups", backupsRouter);
   router.use("/calendar", calendarRouter);

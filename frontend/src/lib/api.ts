@@ -7,13 +7,18 @@
 import { ApiClientError } from "@/lib/apiError";
 import { isMobileApiEnabled, mobileApi } from "@/lib/mobileApi";
 
-const BASE = "/api";
+const REMOTE_API = import.meta.env.VITE_API_URL?.replace(/\/$/, "") as string | undefined;
+const BASE = REMOTE_API ? `${REMOTE_API}/api` : "/api";
+const SESSION_KEY = "personal-control-session-v1";
 
 export { ApiClientError };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null") as { token?: string } | null;
+  const headers: Record<string, string> = init?.body instanceof Blob ? {} : { "Content-Type": "application/json" };
+  if (session?.token) headers.Authorization = `Bearer ${session.token}`;
   const res = await fetch(`${BASE}${path}`, {
-    headers: init?.body instanceof Blob ? undefined : { "Content-Type": "application/json" },
+    headers,
     ...init,
   });
   if (!res.ok) {
@@ -30,26 +35,29 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => (isMobileApiEnabled() ? mobileApi.get<T>(path) : request<T>(path)),
+  get: <T>(path: string) => (isMobileApiEnabled() && !REMOTE_API ? mobileApi.get<T>(path) : request<T>(path)),
   post: <T>(path: string, body?: unknown) =>
-    isMobileApiEnabled()
+    isMobileApiEnabled() && !REMOTE_API
       ? mobileApi.post<T>(path, body)
       : request<T>(path, { method: "POST", body: body != null ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body: unknown) =>
-    isMobileApiEnabled()
+    isMobileApiEnabled() && !REMOTE_API
       ? mobileApi.put<T>(path, body)
       : request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(path: string, body?: unknown) =>
-    isMobileApiEnabled()
+    isMobileApiEnabled() && !REMOTE_API
       ? mobileApi.patch<T>(path, body)
       : request<T>(path, { method: "PATCH", body: body != null ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) =>
-    isMobileApiEnabled() ? mobileApi.delete<T>(path) : request<T>(path, { method: "DELETE" }),
+    isMobileApiEnabled() && !REMOTE_API ? mobileApi.delete<T>(path) : request<T>(path, { method: "DELETE" }),
 
   /** Descarga un archivo generado por la API (reportes, exportar base). */
   async download(path: string, fallbackName: string): Promise<void> {
-    if (isMobileApiEnabled()) return mobileApi.download(path, fallbackName);
-    const res = await fetch(`${BASE}${path}`);
+    if (isMobileApiEnabled() && !REMOTE_API) return mobileApi.download(path, fallbackName);
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null") as { token?: string } | null;
+    const res = await fetch(`${BASE}${path}`, {
+      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : undefined,
+    });
     if (!res.ok) throw new ApiClientError(res.status, "No se pudo generar el archivo");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -64,10 +72,14 @@ export const api = {
 
   /** Sube un archivo binario crudo (importar base de datos). */
   async upload<T>(path: string, file: File): Promise<T> {
-    if (isMobileApiEnabled()) return mobileApi.upload<T>(path, file);
+    if (isMobileApiEnabled() && !REMOTE_API) return mobileApi.upload<T>(path, file);
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null") as { token?: string } | null;
     const res = await fetch(`${BASE}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/octet-stream" },
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
+      },
       body: file,
     });
     if (!res.ok) {

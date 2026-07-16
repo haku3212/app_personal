@@ -1,5 +1,6 @@
 const USERS_KEY = "personal-control-users-v1";
 const SESSION_KEY = "personal-control-session-v1";
+const REMOTE_API = import.meta.env.VITE_API_URL?.replace(/\/$/, "") as string | undefined;
 
 export type UserRole = "ADMIN" | "USER";
 
@@ -21,6 +22,54 @@ export interface AuthSession {
   role: UserRole;
   activeOwnerUserId: string;
   activeOwnerDisplayName: string;
+  token?: string;
+}
+
+interface RemoteUser {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  lockedAt?: string | null;
+  createdAt: string;
+}
+
+function toLocalUser(user: RemoteUser): LocalUser {
+  return {
+    id: String(user.id),
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    lockedAt: user.lockedAt ?? null,
+    salt: "",
+    passwordHash: "",
+    createdAt: user.createdAt,
+  };
+}
+
+function toSession(user: RemoteUser, token?: string): AuthSession {
+  return {
+    userId: String(user.id),
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    activeOwnerUserId: String(user.id),
+    activeOwnerDisplayName: user.displayName,
+    token,
+  };
+}
+
+async function remoteRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!REMOTE_API) throw new Error("No hay API remota configurada");
+  const current = await getCurrentSession();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (current?.token) headers.Authorization = `Bearer ${current.token}`;
+  const res = await fetch(`${REMOTE_API}/api${path}`, { ...init, headers });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Error ${res.status}`);
+  }
+  return (await res.json()) as T;
 }
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -58,6 +107,10 @@ async function passwordHash(password: string, salt: string): Promise<string> {
 }
 
 export async function listUsers(): Promise<LocalUser[]> {
+  if (REMOTE_API) {
+    const users = await remoteRequest<RemoteUser[]>("/users");
+    return users.map(toLocalUser);
+  }
   const users = await readJson<Array<Omit<LocalUser, "role"> & { role?: UserRole; lockedAt?: string | null }>>(
     USERS_KEY,
     [],
@@ -76,6 +129,7 @@ export async function listUsers(): Promise<LocalUser[]> {
 export async function getCurrentSession(): Promise<AuthSession | null> {
   const session = await readJson<AuthSession | null>(SESSION_KEY, null);
   if (!session) return null;
+  if (REMOTE_API) return session;
   const users = await listUsers();
   const currentUser = users.find((user) => user.id === session.userId);
   if (!currentUser) {
@@ -119,6 +173,21 @@ export async function createUser(input: {
   activate?: boolean;
   role?: UserRole;
 }): Promise<AuthSession> {
+  if (REMOTE_API) {
+    const path = input.activate === false ? "/users" : "/auth/register";
+    const result = await remoteRequest<{ token?: string; user: RemoteUser }>(path, {
+      method: "POST",
+      body: JSON.stringify({
+        username: input.username,
+        displayName: input.displayName || input.username,
+        password: input.password,
+        role: input.role ?? "USER",
+      }),
+    });
+    const session = toSession(result.user, result.token);
+    if (input.activate ?? true) await setCurrentSession(session);
+    return session;
+  }
   const username = normalizeUsername(input.username);
   if (username.length < 3) throw new Error("El usuario debe tener al menos 3 caracteres");
   if (input.password.length < 4) throw new Error("La contrasena debe tener al menos 4 caracteres");
@@ -154,6 +223,15 @@ export async function createUser(input: {
 }
 
 export async function loginUser(usernameInput: string, password: string): Promise<AuthSession> {
+  if (REMOTE_API) {
+    const result = await remoteRequest<{ token: string; user: RemoteUser }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username: usernameInput, password }),
+    });
+    const session = toSession(result.user, result.token);
+    await setCurrentSession(session);
+    return session;
+  }
   const username = normalizeUsername(usernameInput);
   const user = (await listUsers()).find((candidate) => candidate.username === username);
   if (!user) throw new Error("Usuario o contrasena incorrectos");
@@ -173,6 +251,10 @@ export async function loginUser(usernameInput: string, password: string): Promis
 }
 
 export async function changeUserPassword(userId: string, password: string): Promise<void> {
+  if (REMOTE_API) {
+    await remoteRequest(`/users/${userId}`, { method: "PATCH", body: JSON.stringify({ password }) });
+    return;
+  }
   if (password.length < 4) throw new Error("La contrasena debe tener al menos 4 caracteres");
   const users = await listUsers();
   const index = users.findIndex((user) => user.id === userId);
@@ -189,6 +271,10 @@ export async function changeUserPassword(userId: string, password: string): Prom
 }
 
 export async function setUserLocked(userId: string, locked: boolean): Promise<void> {
+  if (REMOTE_API) {
+    await remoteRequest(`/users/${userId}`, { method: "PATCH", body: JSON.stringify({ locked }) });
+    return;
+  }
   const users = await listUsers();
   const user = users.find((candidate) => candidate.id === userId);
   if (!user) throw new Error("Usuario no encontrado");
@@ -202,6 +288,10 @@ export async function setUserLocked(userId: string, locked: boolean): Promise<vo
 }
 
 export async function setUserRole(userId: string, role: UserRole): Promise<void> {
+  if (REMOTE_API) {
+    await remoteRequest(`/users/${userId}`, { method: "PATCH", body: JSON.stringify({ role }) });
+    return;
+  }
   const users = await listUsers();
   const user = users.find((candidate) => candidate.id === userId);
   if (!user) throw new Error("Usuario no encontrado");
@@ -234,5 +324,8 @@ export async function switchActiveOwner(ownerUserId: string): Promise<AuthSessio
 }
 
 export async function logoutUser(): Promise<void> {
+  if (REMOTE_API) {
+    await remoteRequest("/auth/logout", { method: "POST" }).catch(() => undefined);
+  }
   await setCurrentSession(null);
 }
