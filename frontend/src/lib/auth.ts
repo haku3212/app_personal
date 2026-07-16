@@ -62,9 +62,9 @@ export async function listUsers(): Promise<LocalUser[]> {
     USERS_KEY,
     [],
   );
-  const migrated = users.map((user, index) => ({
+  const migrated = users.map((user) => ({
     ...user,
-    role: user.role ?? (index === 0 ? "ADMIN" : "USER"),
+    role: user.role ?? "USER",
     lockedAt: user.lockedAt ?? null,
   }));
   if (users.some((user) => !user.role || user.lockedAt === undefined)) {
@@ -117,6 +117,7 @@ export async function createUser(input: {
   displayName?: string;
   password: string;
   activate?: boolean;
+  role?: UserRole;
 }): Promise<AuthSession> {
   const username = normalizeUsername(input.username);
   if (username.length < 3) throw new Error("El usuario debe tener al menos 3 caracteres");
@@ -128,7 +129,7 @@ export async function createUser(input: {
   }
 
   const salt = randomSalt();
-  const role: UserRole = users.length === 0 ? "ADMIN" : "USER";
+  const role: UserRole = input.role ?? "USER";
   const user: LocalUser = {
     id: randomId(),
     username,

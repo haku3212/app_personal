@@ -102,7 +102,7 @@ export function AdminUsers() {
   const createNewUser = async () => {
     resetMessages();
     try {
-      await createUser({ ...form, activate: false });
+      await createUser({ ...form, activate: false, role: "USER" });
       await refreshUsers();
       setForm({ username: "", displayName: "", password: "" });
       setCreateOpen(false);

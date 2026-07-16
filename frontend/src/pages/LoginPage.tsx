@@ -43,7 +43,7 @@ export function LoginPage() {
             {mode === "register"
               ? hasUsers
                 ? "Cada usuario tendra su propia informacion."
-                : "El primer usuario sera admin y podra ver todo."
+                : "Crea un usuario normal. El admin se asigna desde una cuenta administradora."
               : "Ingresa con tu usuario para ver tus datos."}
           </CardDescription>
         </CardHeader>
