@@ -9,12 +9,12 @@ frontend/dist/
 backend/dist/
 electron/dist/
 
-# Base de datos local y respaldos
+# Base de datos local y respaldos (solo datos, nunca código)
 *.sqlite
 *.sqlite-journal
 *.db
-data/
-backups/
+/data/
+database/prisma/backups/
 
 # Prisma
 database/prisma/dev.db*
