@@ -21,11 +21,13 @@ import { settingsRouter } from "./modules/settings/settings.router";
 import { statsRouter } from "./modules/stats/stats.router";
 import { worklogsRouter } from "./modules/worklogs/worklogs.router";
 import { usersRouter } from "./modules/users/users.router";
+import { requireUserOrLegacy } from "./modules/auth/auth.middleware";
 
 export function apiRouter(): Router {
   const router = Router();
   router.use("/auth", authRouter);
   router.use("/users", usersRouter);
+  router.use(requireUserOrLegacy);
   router.use("/accounts", accountsRouter);
   router.use("/backups", backupsRouter);
   router.use("/calendar", calendarRouter);

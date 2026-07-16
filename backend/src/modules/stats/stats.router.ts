@@ -5,6 +5,7 @@ import { Router } from "express";
 import dayjs from "dayjs";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, round2 } from "../../lib/http";
+import { ownerWhere } from "../../lib/owner";
 
 /** Agrupa montos por mes ("YYYY-MM") a partir de filas { date, amount }. */
 function groupByMonth(rows: { date: Date; amount: number }[]): Map<string, number> {
@@ -29,13 +30,15 @@ export const statsRouter = Router();
 
 statsRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const db = prisma();
+    const owned = ownerWhere(req);
+    const ownedGoal = owned.ownerId ? { goal: { ownerId: owned.ownerId } } : {};
     const [expenses, incomes, worklogs, savings] = await Promise.all([
-      db.expense.findMany({ select: { date: true, amount: true, description: true } }),
-      db.income.findMany({ select: { date: true, amount: true, source: true } }),
-      db.workLog.findMany({ select: { date: true, hours: true, expectedPay: true } }),
-      db.goalContribution.aggregate({ _sum: { amount: true } }),
+      db.expense.findMany({ where: owned, select: { date: true, amount: true, description: true } }),
+      db.income.findMany({ where: owned, select: { date: true, amount: true, source: true } }),
+      db.workLog.findMany({ where: owned, select: { date: true, hours: true, expectedPay: true } }),
+      db.goalContribution.aggregate({ where: ownedGoal, _sum: { amount: true } }),
     ]);
 
     // Días con actividad para calcular promedios reales (no días calendario).

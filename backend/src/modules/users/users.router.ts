@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma";
 import { ApiError, asyncHandler, parseBody, parseId } from "../../lib/http";
 import { requireAdmin, requireUser } from "../auth/auth.middleware";
 import { hashPassword } from "../auth/auth.service";
+import { seedUserDefaults } from "../../seed";
 
 const createUserSchema = z.object({
   username: z.string().trim().min(3).max(50),
@@ -19,7 +20,24 @@ const patchUserSchema = z.object({
   locked: z.boolean().optional(),
 });
 
-function publicUser(user: { id: number; username: string; displayName: string; role: string; lockedAt: Date | null; createdAt: Date }) {
+interface PublicUserInput {
+  id: number;
+  username: string;
+  displayName: string;
+  role: string;
+  lockedAt: Date | null;
+  createdAt: Date;
+  summary?: {
+    incomes: number;
+    expenses: number;
+    worklogs: number;
+    loans: number;
+    goals: number;
+    notes: number;
+  };
+}
+
+function publicUser(user: PublicUserInput) {
   return {
     id: user.id,
     username: user.username,
@@ -27,7 +45,21 @@ function publicUser(user: { id: number; username: string; displayName: string; r
     role: user.role,
     lockedAt: user.lockedAt,
     createdAt: user.createdAt,
+    summary: user.summary,
   };
+}
+
+async function userSummary(ownerId: number): Promise<NonNullable<PublicUserInput["summary"]>> {
+  const db = prisma();
+  const [incomes, expenses, worklogs, loans, goals, notes] = await Promise.all([
+    db.income.count({ where: { ownerId } }),
+    db.expense.count({ where: { ownerId } }),
+    db.workLog.count({ where: { ownerId } }),
+    db.loan.count({ where: { ownerId } }),
+    db.savingGoal.count({ where: { ownerId } }),
+    db.note.count({ where: { ownerId } }),
+  ]);
+  return { incomes, expenses, worklogs, loans, goals, notes };
 }
 
 export const usersRouter = Router();
@@ -39,7 +71,10 @@ usersRouter.get(
   requireAdmin,
   asyncHandler(async (_req, res) => {
     const users = await prisma().user.findMany({ orderBy: { createdAt: "asc" } });
-    res.json(users.map(publicUser));
+    const enriched = await Promise.all(
+      users.map(async (user) => publicUser({ ...user, summary: await userSummary(user.id) })),
+    );
+    res.json(enriched);
   }),
 );
 
@@ -48,6 +83,7 @@ usersRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const data = parseBody(createUserSchema, req.body);
+    if (data.role === "ADMIN") throw new ApiError(400, "Solo el usuario principal puede ser admin");
     const existing = await prisma().user.findUnique({ where: { username: data.username.toLowerCase() } });
     if (existing) throw new ApiError(409, "Ese usuario ya existe");
     const user = await prisma().user.create({
@@ -55,9 +91,10 @@ usersRouter.post(
         username: data.username.toLowerCase(),
         displayName: data.displayName,
         passwordHash: hashPassword(data.password),
-        role: data.role,
+        role: "USER",
       },
     });
+    await seedUserDefaults(user.id);
     res.status(201).json(publicUser(user));
   }),
 );
@@ -71,6 +108,9 @@ usersRouter.patch(
     const users = await prisma().user.findMany();
     const current = users.find((user) => user.id === id);
     if (!current) throw new ApiError(404, "Usuario no encontrado");
+    if (data.role === "ADMIN" && current.role !== "ADMIN") {
+      throw new ApiError(400, "Solo el usuario principal puede ser admin");
+    }
     if (current.role === "ADMIN" && data.role === "USER" && users.filter((user) => user.role === "ADMIN").length <= 1) {
       throw new ApiError(400, "Debe quedar al menos un admin");
     }

@@ -13,12 +13,22 @@ const SESSION_KEY = "personal-control-session-v1";
 
 export { ApiClientError };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null") as { token?: string } | null;
-  const headers: Record<string, string> = init?.body instanceof Blob ? {} : { "Content-Type": "application/json" };
+function sessionHeaders(): Record<string, string> {
+  const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null") as
+    | { token?: string; role?: string; activeOwnerUserId?: string }
+    | null;
+  const headers: Record<string, string> = {};
   if (session?.token) headers.Authorization = `Bearer ${session.token}`;
+  if (session?.role === "ADMIN" && session.activeOwnerUserId) {
+    headers["X-Owner-User-Id"] = session.activeOwnerUserId;
+  }
+  return headers;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = init?.body instanceof Blob ? {} : { "Content-Type": "application/json" };
   const res = await fetch(`${BASE}${path}`, {
-    headers,
+    headers: { ...headers, ...sessionHeaders() },
     ...init,
   });
   if (!res.ok) {
@@ -54,9 +64,8 @@ export const api = {
   /** Descarga un archivo generado por la API (reportes, exportar base). */
   async download(path: string, fallbackName: string): Promise<void> {
     if (isMobileApiEnabled() && !REMOTE_API) return mobileApi.download(path, fallbackName);
-    const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null") as { token?: string } | null;
     const res = await fetch(`${BASE}${path}`, {
-      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : undefined,
+      headers: sessionHeaders(),
     });
     if (!res.ok) throw new ApiClientError(res.status, "No se pudo generar el archivo");
     const blob = await res.blob();
@@ -73,12 +82,11 @@ export const api = {
   /** Sube un archivo binario crudo (importar base de datos). */
   async upload<T>(path: string, file: File): Promise<T> {
     if (isMobileApiEnabled() && !REMOTE_API) return mobileApi.upload<T>(path, file);
-    const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null") as { token?: string } | null;
     const res = await fetch(`${BASE}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/octet-stream",
-        ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
+        ...sessionHeaders(),
       },
       body: file,
     });

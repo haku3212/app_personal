@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 
 const goalSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio").max(100),
@@ -36,8 +37,9 @@ export const goalsRouter = Router();
 
 goalsRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const goals = await prisma().savingGoal.findMany({
+      where: ownerWhere(req),
       include: { contributions: { orderBy: { date: "desc" } } },
       orderBy: { createdAt: "desc" },
     });
@@ -50,7 +52,7 @@ goalsRouter.post(
   asyncHandler(async (req, res) => {
     const data = parseBody(goalSchema, req.body);
     const created = await prisma().savingGoal.create({
-      data: { ...data, targetAmount: round2(data.targetAmount) },
+      data: { ...data, ...ownerData(req), targetAmount: round2(data.targetAmount) },
       include: { contributions: true },
     });
     res.status(201).json(withProgress(created));
@@ -62,6 +64,7 @@ goalsRouter.put(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const patch = parseBody(goalSchema.partial(), req.body);
+    await ensureOwned(req, "savingGoal", id);
     const updated = await prisma().savingGoal.update({
       where: { id },
       data: patch,
@@ -77,6 +80,7 @@ goalsRouter.post(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const data = parseBody(contributionSchema, req.body);
+    await ensureOwned(req, "savingGoal", id);
     await prisma().goalContribution.create({
       data: { ...data, amount: round2(data.amount), goalId: id },
     });
@@ -98,6 +102,7 @@ goalsRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
+    await ensureOwned(req, "savingGoal", id);
     await prisma().savingGoal.delete({ where: { id } });
     res.json({ ok: true });
   }),

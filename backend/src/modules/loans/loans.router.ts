@@ -6,6 +6,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { ApiError, asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 import { rangeFilter } from "../../utils/dates";
 
 const loanSchema = z.object({
@@ -45,6 +46,7 @@ loansRouter.get(
     const { type, status, from, to, q } = req.query as Record<string, string | undefined>;
     const loans = await prisma().loan.findMany({
       where: {
+        ...ownerWhere(req),
         type: type || undefined,
         status: status || undefined,
         date: rangeFilter(from, to),
@@ -60,8 +62,8 @@ loansRouter.get(
 /** GET /api/loans/summary — cuánto me deben, cuánto debo, préstamos activos. */
 loansRouter.get(
   "/summary",
-  asyncHandler(async (_req, res) => {
-    const loans = await prisma().loan.findMany({ include: { payments: true } });
+  asyncHandler(async (req, res) => {
+    const loans = await prisma().loan.findMany({ where: ownerWhere(req), include: { payments: true } });
     const active = loans.filter((l) => l.status !== "PAID").map(withTotals);
     const owedToMe = round2(
       active.filter((l) => l.type === "LENT").reduce((s, l) => s + l.remaining, 0),
@@ -84,7 +86,7 @@ loansRouter.post(
   asyncHandler(async (req, res) => {
     const data = parseBody(loanSchema, req.body);
     const created = await prisma().loan.create({
-      data: { ...data, amount: round2(data.amount) },
+      data: { ...data, ...ownerData(req), amount: round2(data.amount) },
       include: { payments: true },
     });
     res.status(201).json(withTotals(created));
@@ -96,6 +98,7 @@ loansRouter.put(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const patch = parseBody(loanSchema.partial(), req.body);
+    await ensureOwned(req, "loan", id);
     const current = await prisma().loan.findUniqueOrThrow({
       where: { id },
       include: { payments: true },
@@ -117,6 +120,7 @@ loansRouter.post(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const data = parseBody(paymentSchema, req.body);
+    await ensureOwned(req, "loan", id);
     const loan = await prisma().loan.findUniqueOrThrow({
       where: { id },
       include: { payments: true },
@@ -141,6 +145,7 @@ loansRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
+    await ensureOwned(req, "loan", id);
     await prisma().loan.delete({ where: { id } });
     res.json({ ok: true });
   }),

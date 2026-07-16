@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 
 const accountSchema = z.object({
   name: z.string().trim().min(1).max(50),
@@ -31,8 +32,8 @@ export async function accountBalance(accountId: number): Promise<number> {
 /** Listado con saldo calculado por cuenta. */
 accountsRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const accounts = await prisma().account.findMany({ orderBy: { id: "asc" } });
+  asyncHandler(async (req, res) => {
+    const accounts = await prisma().account.findMany({ where: ownerWhere(req), orderBy: { id: "asc" } });
     const withBalance = await Promise.all(
       accounts.map(async (a) => ({ ...a, balance: await accountBalance(a.id) })),
     );
@@ -44,7 +45,7 @@ accountsRouter.post(
   "/",
   asyncHandler(async (req, res) => {
     const data = parseBody(accountSchema, req.body);
-    const created = await prisma().account.create({ data });
+    const created = await prisma().account.create({ data: { ...data, ...ownerData(req) } });
     res.status(201).json({ ...created, balance: created.initialBalance });
   }),
 );
@@ -54,6 +55,7 @@ accountsRouter.put(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const data = parseBody(accountSchema.partial(), req.body);
+    await ensureOwned(req, "account", id);
     const updated = await prisma().account.update({ where: { id }, data });
     res.json({ ...updated, balance: await accountBalance(id) });
   }),
@@ -63,6 +65,7 @@ accountsRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
+    await ensureOwned(req, "account", id);
     await prisma().account.delete({ where: { id } });
     res.json({ ok: true });
   }),

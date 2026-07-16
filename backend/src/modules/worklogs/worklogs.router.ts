@@ -7,6 +7,7 @@ import { z } from "zod";
 import dayjs from "dayjs";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 import { lastMonths, monthRange, rangeFilter, weekRange } from "../../utils/dates";
 import { computeWork } from "../../utils/worklog";
 
@@ -34,6 +35,7 @@ worklogsRouter.get(
     const { from, to, company, project, q } = req.query as Record<string, string | undefined>;
     const logs = await prisma().workLog.findMany({
       where: {
+        ...ownerWhere(req),
         date: rangeFilter(from, to),
         company: company ? { contains: company } : undefined,
         project: project ? { contains: project } : undefined,
@@ -61,12 +63,13 @@ worklogsRouter.get(
 /** GET /api/worklogs/summary — promedios semanales/mensuales y serie por mes. */
 worklogsRouter.get(
   "/summary",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const week = weekRange();
     const month = monthRange();
+    const owned = ownerWhere(req);
     const [weekLogs, monthLogs] = await Promise.all([
-      prisma().workLog.findMany({ where: { date: { gte: week.from, lte: week.to } } }),
-      prisma().workLog.findMany({ where: { date: { gte: month.from, lte: month.to } } }),
+      prisma().workLog.findMany({ where: { ...owned, date: { gte: week.from, lte: week.to } } }),
+      prisma().workLog.findMany({ where: { ...owned, date: { gte: month.from, lte: month.to } } }),
     ]);
 
     // Serie de los últimos 6 meses para el gráfico de horas.
@@ -74,7 +77,7 @@ worklogsRouter.get(
     const monthly = await Promise.all(
       months.map(async (m) => {
         const agg = await prisma().workLog.aggregate({
-          where: { date: { gte: m.range.from, lte: m.range.to } },
+          where: { ...owned, date: { gte: m.range.from, lte: m.range.to } },
           _sum: { hours: true, expectedPay: true },
         });
         return {
@@ -105,7 +108,7 @@ worklogsRouter.post(
   asyncHandler(async (req, res) => {
     const data = parseBody(workLogSchema, req.body);
     const computed = computeWork(data);
-    const created = await prisma().workLog.create({ data: { ...data, ...computed } });
+    const created = await prisma().workLog.create({ data: { ...data, ...ownerData(req), ...computed } });
     res.status(201).json(created);
   }),
 );
@@ -115,6 +118,7 @@ worklogsRouter.put(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const patch = parseBody(workLogSchema.partial(), req.body);
+    await ensureOwned(req, "workLog", id);
     // Para recalcular se combinan los datos existentes con el parche recibido.
     const current = await prisma().workLog.findUniqueOrThrow({ where: { id } });
     const merged = { ...current, ...patch };
@@ -131,6 +135,7 @@ worklogsRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
+    await ensureOwned(req, "workLog", id);
     await prisma().workLog.delete({ where: { id } });
     res.json({ ok: true });
   }),

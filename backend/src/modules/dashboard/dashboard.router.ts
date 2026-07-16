@@ -5,15 +5,18 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, round2 } from "../../lib/http";
+import { ownerWhere } from "../../lib/owner";
 import { lastMonths, monthRange } from "../../utils/dates";
 
 export const dashboardRouter = Router();
 
 dashboardRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const month = monthRange();
     const db = prisma();
+    const owned = ownerWhere(req);
+    const ownedGoal = owned.ownerId ? { goal: { ownerId: owned.ownerId } } : {};
 
     const [
       accounts,
@@ -25,23 +28,23 @@ dashboardRouter.get(
       loans,
       contributions,
     ] = await Promise.all([
-      db.account.findMany({ where: { archived: false } }),
-      db.income.aggregate({ _sum: { amount: true } }),
-      db.expense.aggregate({ _sum: { amount: true } }),
+      db.account.findMany({ where: { ...owned, archived: false } }),
+      db.income.aggregate({ where: owned, _sum: { amount: true } }),
+      db.expense.aggregate({ where: owned, _sum: { amount: true } }),
       db.income.aggregate({
-        where: { date: { gte: month.from, lte: month.to } },
+        where: { ...owned, date: { gte: month.from, lte: month.to } },
         _sum: { amount: true },
       }),
       db.expense.aggregate({
-        where: { date: { gte: month.from, lte: month.to } },
+        where: { ...owned, date: { gte: month.from, lte: month.to } },
         _sum: { amount: true },
       }),
       db.workLog.aggregate({
-        where: { date: { gte: month.from, lte: month.to } },
+        where: { ...owned, date: { gte: month.from, lte: month.to } },
         _sum: { hours: true, expectedPay: true },
       }),
-      db.loan.findMany({ include: { payments: true } }),
-      db.goalContribution.aggregate({ _sum: { amount: true } }),
+      db.loan.findMany({ where: owned, include: { payments: true } }),
+      db.goalContribution.aggregate({ where: ownedGoal, _sum: { amount: true } }),
     ]);
 
     // Dinero disponible = saldos iniciales + todos los ingresos − todos los gastos.
@@ -68,12 +71,15 @@ dashboardRouter.get(
     const months = lastMonths(6);
     const series = await Promise.all(
       months.map(async (m) => {
-        const where = { date: { gte: m.range.from, lte: m.range.to } };
+        const where = { ...owned, date: { gte: m.range.from, lte: m.range.to } };
+        const goalWhere = owned.ownerId
+          ? { goal: { ownerId: owned.ownerId }, date: { gte: m.range.from, lte: m.range.to } }
+          : { date: { gte: m.range.from, lte: m.range.to } };
         const [inc, exp, work, savings] = await Promise.all([
           db.income.aggregate({ where, _sum: { amount: true } }),
           db.expense.aggregate({ where, _sum: { amount: true } }),
           db.workLog.aggregate({ where, _sum: { hours: true } }),
-          db.goalContribution.aggregate({ where, _sum: { amount: true } }),
+          db.goalContribution.aggregate({ where: goalWhere, _sum: { amount: true } }),
         ]);
         const income = round2(inc._sum.amount ?? 0);
         const expense = round2(exp._sum.amount ?? 0);
@@ -90,7 +96,7 @@ dashboardRouter.get(
 
     // Gastos del mes agrupados por categoría (para el gráfico de pastel).
     const monthExpenseRows = await db.expense.findMany({
-      where: { date: { gte: month.from, lte: month.to } },
+      where: { ...owned, date: { gte: month.from, lte: month.to } },
       include: { category: true },
     });
     const byCategory = new Map<string, { name: string; color: string; value: number }>();

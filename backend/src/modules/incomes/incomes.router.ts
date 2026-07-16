@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 import { rangeFilter } from "../../utils/dates";
 
 const incomeSchema = z.object({
@@ -29,6 +30,7 @@ incomesRouter.get(
     const { from, to, categoryId, q } = req.query as Record<string, string | undefined>;
     const incomes = await prisma().income.findMany({
       where: {
+        ...ownerWhere(req),
         date: rangeFilter(from, to),
         categoryId: categoryId ? Number(categoryId) : undefined,
         ...(q
@@ -53,8 +55,10 @@ incomesRouter.post(
   "/",
   asyncHandler(async (req, res) => {
     const data = parseBody(incomeSchema, req.body);
+    if (data.categoryId) await ensureOwned(req, "category", data.categoryId);
+    if (data.accountId) await ensureOwned(req, "account", data.accountId);
     const created = await prisma().income.create({
-      data: { ...data, amount: round2(data.amount) },
+      data: { ...data, ...ownerData(req), amount: round2(data.amount) },
       include,
     });
     res.status(201).json(created);
@@ -66,6 +70,9 @@ incomesRouter.put(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const data = parseBody(incomeSchema.partial(), req.body);
+    await ensureOwned(req, "income", id);
+    if (data.categoryId) await ensureOwned(req, "category", data.categoryId);
+    if (data.accountId) await ensureOwned(req, "account", data.accountId);
     const updated = await prisma().income.update({
       where: { id },
       data: { ...data, ...(data.amount != null ? { amount: round2(data.amount) } : {}) },
@@ -79,6 +86,7 @@ incomesRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
+    await ensureOwned(req, "income", id);
     await prisma().income.delete({ where: { id } });
     res.json({ ok: true });
   }),

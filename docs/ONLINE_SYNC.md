@@ -10,10 +10,16 @@ La app puede trabajar en dos modos:
 Esta etapa agrega:
 
 - modelos `User` y `Session` en Prisma,
+- `ownerId` en cuentas, categorias, ingresos, gastos, horas, prestamos, metas y notas,
 - registro/login online en `/api/auth`,
 - administracion de usuarios online en `/api/users`,
 - tokens Bearer revocables,
-- frontend preparado para usar `VITE_API_URL`.
+- frontend preparado para usar `VITE_API_URL`,
+- filtros por usuario actual y por usuario seleccionado cuando entra el admin,
+- datos base privados para cada usuario nuevo.
+
+Un usuario normal solo ve y edita su propia informacion. El admin puede cambiar
+el usuario activo desde la app y ver los datos de esa persona sin mezclar datos.
 
 ## Activar modo online en Netlify
 
@@ -25,23 +31,8 @@ VITE_API_URL=https://TU-BACKEND.example.com
 
 La app prioriza esa URL y deja de usar la base local para las llamadas API.
 
-## Pendiente para sincronizacion completa
+## Nota de admin
 
-Todavia falta asociar cada registro financiero a un usuario en la base online:
-
-- `Income.ownerId`
-- `Expense.ownerId`
-- `WorkLog.ownerId`
-- `Loan.ownerId`
-- `SavingGoal.ownerId`
-- `Note.ownerId`
-- `Account.ownerId`
-- `Category.ownerId`
-
-Luego cada router debe filtrar por:
-
-- usuario actual para cuentas normales,
-- usuario seleccionado para admin.
-
-Hasta completar esa etapa, la base online ya puede autenticar usuarios, pero los
-datos financieros del backend siguen siendo globales.
+El primer usuario creado en una base online vacia queda como `ADMIN`. Los
+usuarios siguientes quedan como `USER`, y la API bloquea que se creen o promuevan
+nuevos admins desde la app.

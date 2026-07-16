@@ -5,7 +5,7 @@
  */
 import { prisma } from "./lib/prisma";
 
-const EXPENSE_CATEGORIES: { name: string; color: string; icon: string }[] = [
+export const EXPENSE_CATEGORIES: { name: string; color: string; icon: string }[] = [
   { name: "Comida", color: "#f97316", icon: "utensils" },
   { name: "Gasolina", color: "#ef4444", icon: "fuel" },
   { name: "Herramientas", color: "#8b5cf6", icon: "wrench" },
@@ -19,7 +19,7 @@ const EXPENSE_CATEGORIES: { name: string; color: string; icon: string }[] = [
   { name: "Otros", color: "#94a3b8", icon: "circle-ellipsis" },
 ];
 
-const INCOME_CATEGORIES: { name: string; color: string; icon: string }[] = [
+export const INCOME_CATEGORIES: { name: string; color: string; icon: string }[] = [
   { name: "Trabajo", color: "#22c55e", icon: "briefcase" },
   { name: "Madre", color: "#ec4899", icon: "heart" },
   { name: "Venta", color: "#f97316", icon: "tag" },
@@ -27,7 +27,7 @@ const INCOME_CATEGORIES: { name: string; color: string; icon: string }[] = [
   { name: "Otros", color: "#94a3b8", icon: "circle-ellipsis" },
 ];
 
-const DEFAULT_ACCOUNTS: { name: string; type: string; icon: string }[] = [
+export const DEFAULT_ACCOUNTS: { name: string; type: string; icon: string }[] = [
   { name: "Efectivo", type: "CASH", icon: "banknote" },
   { name: "Caja", type: "CASH", icon: "vault" },
   { name: "Banco", type: "BANK", icon: "landmark" },
@@ -52,4 +52,28 @@ export async function seedDefaults(): Promise<void> {
 
   // Fila única de ajustes (moneda Bs. por defecto).
   await db.setting.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+}
+
+/** Inserta cuentas y categorias privadas para un usuario online recien creado. */
+export async function seedUserDefaults(ownerId: number): Promise<void> {
+  const db = prisma();
+  const [categoryCount, accountCount] = await Promise.all([
+    db.category.count({ where: { ownerId } }),
+    db.account.count({ where: { ownerId } }),
+  ]);
+
+  if (categoryCount === 0) {
+    await db.category.createMany({
+      data: [
+        ...EXPENSE_CATEGORIES.map((c) => ({ ...c, kind: "EXPENSE", ownerId })),
+        ...INCOME_CATEGORIES.map((c) => ({ ...c, kind: "INCOME", ownerId })),
+      ],
+    });
+  }
+
+  if (accountCount === 0) {
+    await db.account.createMany({
+      data: DEFAULT_ACCOUNTS.map((account) => ({ ...account, ownerId })),
+    });
+  }
 }

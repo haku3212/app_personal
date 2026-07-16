@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma";
 import { ApiError } from "../../lib/http";
+import { seedUserDefaults } from "../../seed";
 
 const SESSION_DAYS = 30;
 
@@ -72,6 +73,7 @@ export async function registerUser(input: { username: string; displayName?: stri
       role,
     },
   });
+  await seedUserDefaults(user.id);
   return createSession({ id: user.id, username: user.username, displayName: user.displayName, role: user.role });
 }
 

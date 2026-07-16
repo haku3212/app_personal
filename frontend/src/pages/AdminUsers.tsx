@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -16,7 +15,6 @@ import {
   setUserLocked,
   setUserRole,
   type LocalUser,
-  type UserRole,
 } from "@/lib/auth";
 
 const STORE_PREFIX = "personal-control-mobile-db-v1";
@@ -136,12 +134,12 @@ export function AdminUsers() {
     }
   };
 
-  const updateRole = async (user: LocalUser, role: UserRole) => {
+  const demoteAdmin = async (user: LocalUser) => {
     resetMessages();
     try {
-      await setUserRole(user.id, role);
+      await setUserRole(user.id, "USER");
       await refreshUsers();
-      setMessage("Rol actualizado.");
+      setMessage(`${user.displayName} ahora es usuario normal.`);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -196,7 +194,7 @@ export function AdminUsers() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         {users.map((user) => {
-          const summary = summaries.get(user.id) ?? getUserSummary(user.id);
+          const summary = user.summary ?? summaries.get(user.id) ?? getUserSummary(user.id);
           const isViewing = session.activeOwnerUserId === user.id;
           return (
             <Card key={user.id}>
@@ -278,14 +276,14 @@ export function AdminUsers() {
                     {user.lockedAt ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
                     {user.lockedAt ? "Desbloquear" : "Bloquear"}
                   </Button>
-                  <Select
-                    value={user.role}
-                    onChange={(event) => void updateRole(user, event.target.value as UserRole)}
-                    className="h-8 w-32 text-xs"
-                  >
-                    <option value="USER">Usuario</option>
-                    <option value="ADMIN">Admin</option>
-                  </Select>
+                  <Badge variant={user.role === "ADMIN" ? "default" : "muted"}>
+                    {user.role === "ADMIN" ? "Admin principal" : "Usuario"}
+                  </Badge>
+                  {user.role === "ADMIN" && user.id !== session.userId && (
+                    <Button size="sm" variant="outline" onClick={() => void demoteAdmin(user)}>
+                      Quitar admin
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

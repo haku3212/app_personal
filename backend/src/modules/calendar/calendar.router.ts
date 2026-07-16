@@ -5,6 +5,7 @@ import { Router } from "express";
 import dayjs from "dayjs";
 import { prisma } from "../../lib/prisma";
 import { ApiError, asyncHandler, round2 } from "../../lib/http";
+import { ownerWhere } from "../../lib/owner";
 
 export interface CalendarDay {
   date: string; // "YYYY-MM-DD"
@@ -24,14 +25,15 @@ calendarRouter.get(
     const start = dayjs(`${monthParam}-01`);
     if (!start.isValid()) throw new ApiError(400, "Mes inválido, use YYYY-MM");
     const range = { gte: start.startOf("month").toDate(), lte: start.endOf("month").toDate() };
+    const owned = ownerWhere(req);
 
     const db = prisma();
     const [incomes, expenses, worklogs, loans] = await Promise.all([
-      db.income.findMany({ where: { date: range }, select: { date: true, amount: true } }),
-      db.expense.findMany({ where: { date: range }, select: { date: true, amount: true } }),
-      db.workLog.findMany({ where: { date: range }, select: { date: true, hours: true } }),
+      db.income.findMany({ where: { ...owned, date: range }, select: { date: true, amount: true } }),
+      db.expense.findMany({ where: { ...owned, date: range }, select: { date: true, amount: true } }),
+      db.workLog.findMany({ where: { ...owned, date: range }, select: { date: true, hours: true } }),
       db.loan.findMany({
-        where: { date: range },
+        where: { ...owned, date: range },
         select: { date: true, person: true, type: true, amount: true },
       }),
     ]);

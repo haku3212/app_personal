@@ -8,6 +8,7 @@ import { Router } from "express";
 import dayjs from "dayjs";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, round2 } from "../../lib/http";
+import { ownerWhere } from "../../lib/owner";
 import { dayRange } from "../../utils/dates";
 
 export interface AppNotification {
@@ -21,20 +22,21 @@ export const notificationsRouter = Router();
 
 notificationsRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const db = prisma();
     const notifications: AppNotification[] = [];
     const today = dayRange();
     const in7days = dayjs().add(7, "day").endOf("day").toDate();
+    const owned = ownerWhere(req);
 
     const [dueLoans, goals, todayExpenses, todayWork] = await Promise.all([
       db.loan.findMany({
-        where: { status: { not: "PAID" }, dueDate: { not: null, lte: in7days } },
+        where: { ...owned, status: { not: "PAID" }, dueDate: { not: null, lte: in7days } },
         include: { payments: true },
       }),
-      db.savingGoal.findMany({ where: { achieved: false }, include: { contributions: true } }),
-      db.expense.count({ where: { date: { gte: today.from, lte: today.to } } }),
-      db.workLog.count({ where: { date: { gte: today.from, lte: today.to } } }),
+      db.savingGoal.findMany({ where: { ...owned, achieved: false }, include: { contributions: true } }),
+      db.expense.count({ where: { ...owned, date: { gte: today.from, lte: today.to } } }),
+      db.workLog.count({ where: { ...owned, date: { gte: today.from, lte: today.to } } }),
     ]);
 
     for (const loan of dueLoans) {

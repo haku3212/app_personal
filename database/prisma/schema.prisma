@@ -30,6 +30,14 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   sessions     Session[]
+  accounts     Account[]
+  categories   Category[]
+  incomes      Income[]
+  expenses     Expense[]
+  workLogs     WorkLog[]
+  loans        Loan[]
+  savingGoals  SavingGoal[]
+  notes        Note[]
 }
 
 model Session {
@@ -55,7 +63,9 @@ model Setting {
 /// Cuentas de dinero: caja, banco, efectivo, etc.
 model Account {
   id             Int       @id @default(autoincrement())
-  name           String    @unique
+  ownerId        Int?
+  owner          User?     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name           String
   type           String    @default("CASH") // CASH | BANK | OTHER
   initialBalance Float     @default(0)
   icon           String?
@@ -63,11 +73,16 @@ model Account {
   createdAt      DateTime  @default(now())
   incomes        Income[]
   expenses       Expense[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
 }
 
 /// Categorías editables, separadas por tipo (ingreso / gasto).
 model Category {
   id       Int       @id @default(autoincrement())
+  ownerId  Int?
+  owner    User?     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   name     String
   kind     String // INCOME | EXPENSE
   color    String    @default("#8b5cf6")
@@ -75,12 +90,15 @@ model Category {
   incomes  Income[]
   expenses Expense[]
 
-  @@unique([name, kind])
+  @@unique([ownerId, name, kind])
+  @@index([ownerId])
 }
 
 /// Ingresos de dinero.
 model Income {
   id            Int       @id @default(autoincrement())
+  ownerId       Int?
+  owner         User?     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   date          DateTime
   amount        Float
   source        String // Trabajo, Madre, Venta, Freelance, Otros...
@@ -95,11 +113,14 @@ model Income {
   updatedAt     DateTime  @updatedAt
 
   @@index([date])
+  @@index([ownerId])
 }
 
 /// Gastos de dinero.
 model Expense {
   id            Int       @id @default(autoincrement())
+  ownerId       Int?
+  owner         User?     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   date          DateTime
   amount        Float
   description   String?
@@ -113,12 +134,15 @@ model Expense {
   updatedAt     DateTime  @updatedAt
 
   @@index([date])
+  @@index([ownerId])
 }
 
 /// Jornadas de trabajo. `hours` y `expectedPay` se calculan en el backend
 /// (hora fin - hora inicio - descanso; horas * pago/hora + pago fijo).
 model WorkLog {
   id           Int      @id @default(autoincrement())
+  ownerId      Int?
+  owner        User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   date         DateTime
   startTime    String // "08:00"
   endTime      String // "17:30"
@@ -136,23 +160,27 @@ model WorkLog {
   updatedAt    DateTime @updatedAt
 
   @@index([date])
+  @@index([ownerId])
 }
 
 /// Préstamos: dinero que presté (LENT) o que me prestaron (BORROWED).
 model Loan {
-  id       Int           @id @default(autoincrement())
-  type     String // LENT | BORROWED
-  person   String
-  amount   Float
-  date     DateTime
-  dueDate  DateTime?
-  status   String        @default("PENDING") // PENDING | PARTIAL | PAID
-  notes    String?
-  payments LoanPayment[]
+  id        Int           @id @default(autoincrement())
+  ownerId   Int?
+  owner     User?         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  type      String // LENT | BORROWED
+  person    String
+  amount    Float
+  date      DateTime
+  dueDate   DateTime?
+  status    String        @default("PENDING") // PENDING | PARTIAL | PAID
+  notes     String?
+  payments  LoanPayment[]
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
   @@index([date])
+  @@index([ownerId])
 }
 
 /// Abonos parciales de un préstamo (mantiene el historial normalizado).
@@ -168,6 +196,8 @@ model LoanPayment {
 /// Metas de ahorro (comprar computadora, viaje, etc.).
 model SavingGoal {
   id            Int                @id @default(autoincrement())
+  ownerId       Int?
+  owner         User?              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   name          String
   targetAmount  Float
   targetDate    DateTime?
@@ -176,6 +206,8 @@ model SavingGoal {
   achieved      Boolean            @default(false)
   createdAt     DateTime           @default(now())
   contributions GoalContribution[]
+
+  @@index([ownerId])
 }
 
 /// Aportes a una meta de ahorro. El progreso = suma de aportes.
@@ -191,12 +223,16 @@ model GoalContribution {
 /// Notas rápidas con checklist opcional.
 model Note {
   id        Int        @id @default(autoincrement())
+  ownerId   Int?
+  owner     User?      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   title     String
   content   String     @default("")
   pinned    Boolean    @default(false)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   items     NoteItem[]
+
+  @@index([ownerId])
 }
 
 /// Ítems de checklist dentro de una nota.

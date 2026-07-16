@@ -8,6 +8,7 @@ import writeXlsxFile, { type Cell, type SheetData } from "write-excel-file/node"
 import dayjs from "dayjs";
 import { prisma } from "../../lib/prisma";
 import { ApiError, asyncHandler, round2 } from "../../lib/http";
+import { ownerWhere } from "../../lib/owner";
 import { rangeFilter } from "../../utils/dates";
 import { getSettings } from "../settings/settings.router";
 
@@ -23,6 +24,7 @@ interface ReportData {
 /** Arma las filas del reporte según el tipo pedido y los filtros. */
 async function buildReport(
   kind: ReportKind,
+  owned: { ownerId?: number },
   from?: string,
   to?: string,
   categoryId?: string,
@@ -33,7 +35,7 @@ async function buildReport(
 
   if (kind === "incomes") {
     const items = await db.income.findMany({
-      where: { date, categoryId: categoryId ? Number(categoryId) : undefined },
+      where: { ...owned, date, categoryId: categoryId ? Number(categoryId) : undefined },
       include: { category: true, account: true },
       orderBy: { date: "asc" },
     });
@@ -63,7 +65,7 @@ async function buildReport(
 
   if (kind === "expenses") {
     const items = await db.expense.findMany({
-      where: { date, categoryId: categoryId ? Number(categoryId) : undefined },
+      where: { ...owned, date, categoryId: categoryId ? Number(categoryId) : undefined },
       include: { category: true, account: true },
       orderBy: { date: "asc" },
     });
@@ -89,7 +91,7 @@ async function buildReport(
     };
   }
 
-  const items = await db.workLog.findMany({ where: { date }, orderBy: { date: "asc" } });
+  const items = await db.workLog.findMany({ where: { ...owned, date }, orderBy: { date: "asc" } });
   return {
     title: "Reporte de Horas Trabajadas",
     columns: [
@@ -161,7 +163,7 @@ reportsRouter.get(
   "/excel",
   asyncHandler(async (req, res) => {
     const { kind, from, to, categoryId } = req.query as Record<string, string | undefined>;
-    const data = await buildReport(parseKind(kind), from, to, categoryId);
+    const data = await buildReport(parseKind(kind), ownerWhere(req), from, to, categoryId);
     const settings = await getSettings();
 
     const file = await writeXlsxFile(buildExcelRows(data, settings.currency), {
@@ -187,7 +189,7 @@ reportsRouter.get(
   "/pdf",
   asyncHandler(async (req, res) => {
     const { kind, from, to, categoryId } = req.query as Record<string, string | undefined>;
-    const data = await buildReport(parseKind(kind), from, to, categoryId);
+    const data = await buildReport(parseKind(kind), ownerWhere(req), from, to, categoryId);
     const settings = await getSettings();
 
     res.setHeader("Content-Type", "application/pdf");

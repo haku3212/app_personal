@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { ApiError, asyncHandler, parseBody, parseId } from "../../lib/http";
+import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 
 const categorySchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio").max(50),
@@ -20,7 +21,7 @@ categoriesRouter.get(
   asyncHandler(async (req, res) => {
     const kind = req.query.kind as string | undefined;
     const categories = await prisma().category.findMany({
-      where: kind ? { kind } : undefined,
+      where: { ...ownerWhere(req), ...(kind ? { kind } : {}) },
       orderBy: { name: "asc" },
     });
     res.json(categories);
@@ -31,7 +32,7 @@ categoriesRouter.post(
   "/",
   asyncHandler(async (req, res) => {
     const data = parseBody(categorySchema, req.body);
-    const created = await prisma().category.create({ data });
+    const created = await prisma().category.create({ data: { ...data, ...ownerData(req) } });
     res.status(201).json(created);
   }),
 );
@@ -41,6 +42,7 @@ categoriesRouter.put(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const data = parseBody(categorySchema.partial(), req.body);
+    await ensureOwned(req, "category", id);
     const updated = await prisma().category.update({ where: { id }, data });
     res.json(updated);
   }),
@@ -50,8 +52,9 @@ categoriesRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
-    const inUse = await prisma().income.count({ where: { categoryId: id } });
-    const inUseExpense = await prisma().expense.count({ where: { categoryId: id } });
+    await ensureOwned(req, "category", id);
+    const inUse = await prisma().income.count({ where: { ...ownerWhere(req), categoryId: id } });
+    const inUseExpense = await prisma().expense.count({ where: { ...ownerWhere(req), categoryId: id } });
     if (inUse + inUseExpense > 0) {
       // Se permite borrar: los movimientos quedan sin categoría (SetNull),
       // pero avisamos en la respuesta cuántos quedaron huérfanos.

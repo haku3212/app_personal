@@ -5,6 +5,7 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler } from "../../lib/http";
+import { ownerWhere } from "../../lib/owner";
 
 export interface SearchResult {
   type: "income" | "expense" | "worklog" | "loan" | "note" | "goal";
@@ -31,10 +32,12 @@ searchRouter.get(
     const amount = Number(q.replace(",", "."));
     const byAmount = Number.isFinite(amount) && amount > 0 ? amount : undefined;
     const db = prisma();
+    const owned = ownerWhere(req);
 
     const [incomes, expenses, worklogs, loans, notes, goals] = await Promise.all([
       db.income.findMany({
         where: {
+          ...owned,
           OR: [
             { source: { contains: q } },
             { description: { contains: q } },
@@ -48,6 +51,7 @@ searchRouter.get(
       }),
       db.expense.findMany({
         where: {
+          ...owned,
           OR: [
             { description: { contains: q } },
             { notes: { contains: q } },
@@ -60,6 +64,7 @@ searchRouter.get(
       }),
       db.workLog.findMany({
         where: {
+          ...owned,
           OR: [
             { company: { contains: q } },
             { project: { contains: q } },
@@ -72,6 +77,7 @@ searchRouter.get(
       }),
       db.loan.findMany({
         where: {
+          ...owned,
           OR: [
             { person: { contains: q } },
             { notes: { contains: q } },
@@ -82,11 +88,11 @@ searchRouter.get(
         orderBy: { date: "desc" },
       }),
       db.note.findMany({
-        where: { OR: [{ title: { contains: q } }, { content: { contains: q } }] },
+        where: { ...owned, OR: [{ title: { contains: q } }, { content: { contains: q } }] },
         take: LIMIT,
         orderBy: { updatedAt: "desc" },
       }),
-      db.savingGoal.findMany({ where: { name: { contains: q } }, take: LIMIT }),
+      db.savingGoal.findMany({ where: { ...owned, name: { contains: q } }, take: LIMIT }),
     ]);
 
     const results: SearchResult[] = [

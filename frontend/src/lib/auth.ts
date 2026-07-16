@@ -13,6 +13,15 @@ export interface LocalUser {
   salt: string;
   passwordHash: string;
   createdAt: string;
+  summary?: {
+    incomes: number;
+    expenses: number;
+    worklogs: number;
+    loans: number;
+    goals: number;
+    notes: number;
+    lastActivity?: string;
+  };
 }
 
 export interface AuthSession {
@@ -32,6 +41,7 @@ interface RemoteUser {
   role: UserRole;
   lockedAt?: string | null;
   createdAt: string;
+  summary?: LocalUser["summary"];
 }
 
 function toLocalUser(user: RemoteUser): LocalUser {
@@ -44,6 +54,7 @@ function toLocalUser(user: RemoteUser): LocalUser {
     salt: "",
     passwordHash: "",
     createdAt: user.createdAt,
+    summary: user.summary,
   };
 }
 

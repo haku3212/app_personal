@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 import { dayRange, monthRange, rangeFilter, weekRange, yearRange } from "../../utils/dates";
 
 const expenseSchema = z.object({
@@ -20,9 +21,9 @@ const expenseSchema = z.object({
 const include = { category: true, account: true } as const;
 
 /** Suma de gastos dentro de un rango de fechas. */
-async function totalIn(range: { from: Date; to: Date }): Promise<number> {
+async function totalIn(range: { from: Date; to: Date }, where: { ownerId?: number }): Promise<number> {
   const agg = await prisma().expense.aggregate({
-    where: { date: { gte: range.from, lte: range.to } },
+    where: { ...where, date: { gte: range.from, lte: range.to } },
     _sum: { amount: true },
   });
   return round2(agg._sum.amount ?? 0);
@@ -37,6 +38,7 @@ expensesRouter.get(
     const { from, to, categoryId, accountId, paymentMethod, min, max, q } = req.query as Record<string, string | undefined>;
     const expenses = await prisma().expense.findMany({
       where: {
+        ...ownerWhere(req),
         date: rangeFilter(from, to),
         categoryId: categoryId ? Number(categoryId) : undefined,
         accountId: accountId ? Number(accountId) : undefined,
@@ -57,12 +59,13 @@ expensesRouter.get(
 /** GET /api/expenses/summary — totales de hoy, semana, mes y año. */
 expensesRouter.get(
   "/summary",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const where = ownerWhere(req);
     const [today, week, month, year] = await Promise.all([
-      totalIn(dayRange()),
-      totalIn(weekRange()),
-      totalIn(monthRange()),
-      totalIn(yearRange()),
+      totalIn(dayRange(), where),
+      totalIn(weekRange(), where),
+      totalIn(monthRange(), where),
+      totalIn(yearRange(), where),
     ]);
     res.json({ today, week, month, year });
   }),
@@ -72,8 +75,10 @@ expensesRouter.post(
   "/",
   asyncHandler(async (req, res) => {
     const data = parseBody(expenseSchema, req.body);
+    if (data.categoryId) await ensureOwned(req, "category", data.categoryId);
+    if (data.accountId) await ensureOwned(req, "account", data.accountId);
     const created = await prisma().expense.create({
-      data: { ...data, amount: round2(data.amount) },
+      data: { ...data, ...ownerData(req), amount: round2(data.amount) },
       include,
     });
     res.status(201).json(created);
@@ -85,6 +90,9 @@ expensesRouter.put(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const data = parseBody(expenseSchema.partial(), req.body);
+    await ensureOwned(req, "expense", id);
+    if (data.categoryId) await ensureOwned(req, "category", data.categoryId);
+    if (data.accountId) await ensureOwned(req, "account", data.accountId);
     const updated = await prisma().expense.update({
       where: { id },
       data: { ...data, ...(data.amount != null ? { amount: round2(data.amount) } : {}) },
@@ -98,6 +106,7 @@ expensesRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
+    await ensureOwned(req, "expense", id);
     await prisma().expense.delete({ where: { id } });
     res.json({ ok: true });
   }),

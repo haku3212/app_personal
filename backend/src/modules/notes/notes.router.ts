@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId } from "../../lib/http";
+import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 
 const noteSchema = z.object({
   title: z.string().trim().min(1, "El título es obligatorio").max(120),
@@ -27,8 +28,9 @@ export const notesRouter = Router();
 
 notesRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const notes = await prisma().note.findMany({
+      where: ownerWhere(req),
       include,
       orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
     });
@@ -43,6 +45,7 @@ notesRouter.post(
     const created = await prisma().note.create({
       data: {
         ...data,
+        ...ownerData(req),
         items: { create: items.map((it, order) => ({ ...it, order })) },
       },
       include,
@@ -56,6 +59,7 @@ notesRouter.put(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const { items, ...data } = parseBody(noteSchema, req.body);
+    await ensureOwned(req, "note", id);
     // El checklist se reemplaza completo: borrar y recrear en una transacción.
     const [, updated] = await prisma().$transaction([
       prisma().noteItem.deleteMany({ where: { noteId: id } }),
@@ -77,7 +81,8 @@ notesRouter.patch(
   "/items/:itemId/toggle",
   asyncHandler(async (req, res) => {
     const itemId = parseId(req.params.itemId);
-    const item = await prisma().noteItem.findUniqueOrThrow({ where: { id: itemId } });
+    const item = await prisma().noteItem.findUniqueOrThrow({ where: { id: itemId }, include: { note: true } });
+    await ensureOwned(req, "note", item.noteId);
     const updated = await prisma().noteItem.update({
       where: { id: itemId },
       data: { done: !item.done },
@@ -90,6 +95,7 @@ notesRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
+    await ensureOwned(req, "note", id);
     await prisma().note.delete({ where: { id } });
     res.json({ ok: true });
   }),
