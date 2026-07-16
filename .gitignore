@@ -9,6 +9,13 @@ frontend/dist/
 backend/dist/
 electron/dist/
 
+# iOS / Capacitor
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+ios/App/*.xcworkspace/xcuserdata/
+ios/App/*.xcodeproj/xcuserdata/
+
 # Base de datos local y respaldos (solo datos, nunca código)
 *.sqlite
 *.sqlite-journal

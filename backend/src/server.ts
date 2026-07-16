@@ -3,9 +3,10 @@
  * En producción Electron importa `startServer` de app.ts directamente.
  */
 import { ensureDatabaseUrl } from "./config/paths";
+import { DEFAULT_API_PORT, readPortEnv } from "./config/ports";
 import { startServer } from "./app";
 
-const PORT = Number(process.env.PORT ?? 4310);
+const PORT = readPortEnv(["PERSONAL_CONTROL_PORT", "PORT"], DEFAULT_API_PORT);
 
 ensureDatabaseUrl();
 

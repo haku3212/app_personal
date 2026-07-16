@@ -5,7 +5,7 @@
 ```
 ┌───────────────────────────── Electron (escritorio) ─────────────────────────────┐
 │                                                                                 │
-│  ┌──────────────┐   HTTP local (127.0.0.1:4310)   ┌──────────────────────────┐  │
+│  ┌──────────────┐   HTTP local (127.0.0.1:4311)   ┌──────────────────────────┐  │
 │  │   Frontend    │ ───────────────────────────────▶│        Backend           │  │
 │  │ React + Vite  │ ◀─────────────────────────────── │  Express + Prisma        │  │
 │  │ Tailwind/shadcn│                                 │  (embebido en el main)   │  │
@@ -55,7 +55,7 @@ modules/
 ├── calendar/        # Movimientos agrupados por día para el calendario
 ├── search/          # Búsqueda global en todos los movimientos
 ├── notifications/   # Avisos calculados (vencimientos, metas, días sin registro)
-├── reports/         # Exportación Excel (exceljs) y PDF (pdfkit)
+├── reports/         # Exportación Excel y PDF (pdfkit)
 └── backups/         # Copias de la base SQLite, restauración, import/export
 ```
 

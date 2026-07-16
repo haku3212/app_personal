@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { Wallet2 } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -10,6 +11,12 @@ interface SidebarProps {
 
 /** Barra lateral de navegación (colapsable en pantallas pequeñas). */
 export function Sidebar({ open, onNavigate }: SidebarProps) {
+  const { session } = useAuth();
+  const sections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => !item.adminOnly || session?.role === "ADMIN"),
+  })).filter((section) => section.items.length > 0);
+
   return (
     <aside
       className={cn(
@@ -28,7 +35,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
       </div>
 
       <nav className="h-[calc(100vh-3.5rem)] space-y-5 overflow-y-auto p-3">
-        {NAV_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <div key={section.title}>
             <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               {section.title}

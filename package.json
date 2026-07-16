@@ -18,12 +18,14 @@
     "db:studio": "prisma studio --schema database/prisma/schema.prisma",
     "dev:backend": "npm run dev --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
-    "dev:electron": "npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "dev:electron": "npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://localhost:5174 electron .",
     "dev": "concurrently -k -n api,web \"npm:dev:backend\" \"npm:dev:frontend\"",
     "build:backend": "npm run build --workspace backend",
     "build:frontend": "npm run build --workspace frontend",
+    "build:pwa": "cross-env VITE_FORCE_MOBILE_API=true npm run build --workspace frontend",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:backend && npm run build:frontend && npm run build:electron",
+    "preview:pwa": "cross-env PERSONAL_CONTROL_WEB_PORT=5175 npm run preview --workspace frontend -- --host 127.0.0.1 --port 5175",
     "start": "electron .",
     "dist": "npm run build && electron-builder --win",
     "typecheck": "npm run typecheck --workspaces && tsc -p electron/tsconfig.json --noEmit"
@@ -31,8 +33,8 @@
   "devDependencies": {
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "^33.3.1",
-    "electron-builder": "^25.1.8",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "prisma": "^6.2.1",
     "typescript": "^5.7.3"
   },

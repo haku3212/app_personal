@@ -11,10 +11,22 @@ import { app, BrowserWindow, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
-const PORT = 4310;
+const DEFAULT_API_PORT = 4311;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 /** Máximo de respaldos automáticos que se conservan al cerrar. */
 const MAX_AUTO_BACKUPS = 10;
+let appUrl: string | undefined;
+
+function readPortEnv(names: string[], fallback: number): number {
+  for (const name of names) {
+    const raw = process.env[name];
+    if (!raw) continue;
+    const value = Number(raw);
+    if (Number.isInteger(value) && value > 0 && value <= 65535) return value;
+    console.warn(`[electron] Puerto ignorado en ${name}: "${raw}" no es valido.`);
+  }
+  return fallback;
+}
 
 function databaseFile(): string {
   return path.join(app.getPath("userData"), "personal-control.db");
@@ -34,11 +46,18 @@ async function startEmbeddedApi(): Promise<void> {
   // Import dinámico del backend compilado (viaja dentro del paquete).
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const backend = require(path.join(app.getAppPath(), "backend", "dist", "app.js")) as {
-    startServer: (port: number, opts: { staticDir?: string }) => Promise<unknown>;
+    startServer: (
+      port: number,
+      opts: { staticDir?: string },
+    ) => Promise<{ url: string }>;
   };
-  await backend.startServer(PORT, {
-    staticDir: path.join(app.getAppPath(), "frontend", "dist"),
-  });
+  const server = await backend.startServer(
+    readPortEnv(["PERSONAL_CONTROL_PORT", "PORT"], DEFAULT_API_PORT),
+    {
+      staticDir: path.join(app.getAppPath(), "frontend", "dist"),
+    },
+  );
+  appUrl = server.url;
 }
 
 /** Respaldo automático al cerrar: copia la base y conserva las últimas 10. */
@@ -90,7 +109,7 @@ function createWindow(): void {
     return { action: "deny" };
   });
 
-  void win.loadURL(DEV_URL ?? `http://127.0.0.1:${PORT}`);
+  void win.loadURL(DEV_URL ?? appUrl ?? `http://127.0.0.1:${DEFAULT_API_PORT}`);
 }
 
 // Instancia única: si ya hay una ventana abierta, enfocarla.

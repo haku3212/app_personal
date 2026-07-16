@@ -188,7 +188,7 @@ export function SettingsPage() {
               <input
                 ref={fileInput}
                 type="file"
-                accept=".sqlite,.db"
+                accept=".json,.sqlite,.db"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

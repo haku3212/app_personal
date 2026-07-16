@@ -1,10 +1,10 @@
 /**
- * Módulo Reportes — exportación a Excel (exceljs) y PDF (pdfkit)
+ * Módulo Reportes — exportación a Excel y PDF (pdfkit)
  * de ingresos, gastos y horas trabajadas, filtrable por fechas y categoría.
  */
 import { Router } from "express";
-import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
+import writeXlsxFile, { type Cell, type SheetData } from "write-excel-file/node";
 import dayjs from "dayjs";
 import { prisma } from "../../lib/prisma";
 import { ApiError, asyncHandler, round2 } from "../../lib/http";
@@ -121,6 +121,41 @@ function parseKind(raw: string | undefined): ReportKind {
 
 export const reportsRouter = Router();
 
+function excelCell(value: string | number, bold = false): Cell {
+  return {
+    value,
+    fontWeight: bold ? "bold" : undefined,
+    backgroundColor: bold ? "#7C3AED" : undefined,
+    textColor: bold ? "#FFFFFF" : undefined,
+    align: typeof value === "number" ? "right" : "left",
+    wrap: true,
+  };
+}
+
+function buildExcelRows(data: ReportData, currency: string): SheetData {
+  const rows: SheetData = [
+    data.columns.map((column) => excelCell(column.header, true)),
+    ...data.rows.map((row) => data.columns.map((column) => excelCell(row[column.key] ?? ""))),
+  ];
+  const totalRow = Array.from({ length: data.columns.length }, () => null) as Cell[];
+
+  if (totalRow.length >= 2) {
+    totalRow[totalRow.length - 2] = {
+      value: "TOTAL",
+      fontWeight: "bold",
+      align: "right",
+    };
+    totalRow[totalRow.length - 1] = {
+      value: `${currency} ${data.total.toFixed(2)}`,
+      fontWeight: "bold",
+      align: "right",
+    };
+  }
+
+  rows.push(totalRow);
+  return rows;
+}
+
 /** GET /api/reports/excel?kind&from&to&categoryId — descarga .xlsx */
 reportsRouter.get(
   "/excel",
@@ -129,26 +164,11 @@ reportsRouter.get(
     const data = await buildReport(parseKind(kind), from, to, categoryId);
     const settings = await getSettings();
 
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Personal Control";
-    const sheet = workbook.addWorksheet(data.title);
-    sheet.columns = data.columns;
-
-    // Encabezado con estilo.
-    const headerRow = sheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF7C3AED" } };
-
-    for (const row of data.rows) sheet.addRow(row);
-
-    // Fila de total al final.
-    const totalRow = sheet.addRow({});
-    const lastCol = data.columns[data.columns.length - 1];
-    if (lastCol) {
-      totalRow.getCell(data.columns.length - 1).value = "TOTAL";
-      totalRow.getCell(data.columns.length).value = `${settings.currency} ${data.total}`;
-      totalRow.font = { bold: true };
-    }
+    const file = await writeXlsxFile(buildExcelRows(data, settings.currency), {
+      sheet: data.title.slice(0, 31),
+      columns: data.columns.map((column) => ({ width: column.width })),
+      stickyRowsCount: 1,
+    }).toBuffer();
 
     res.setHeader(
       "Content-Type",
@@ -158,8 +178,7 @@ reportsRouter.get(
       "Content-Disposition",
       `attachment; filename="${data.title.replaceAll(" ", "_")}.xlsx"`,
     );
-    await workbook.xlsx.write(res);
-    res.end();
+    res.send(file);
   }),
 );
 

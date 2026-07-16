@@ -1,8 +1,10 @@
-import { Bell, Menu, Moon, Search, Sun } from "lucide-react";
+import { Bell, LogOut, Menu, Moon, Search, Shield, Sun } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { useApiQuery } from "@/hooks/useCrud";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
+import { useAuth } from "@/hooks/useAuth";
 import type { AppNotification } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,7 @@ const levelDot: Record<AppNotification["level"], string> = {
 /** Barra superior: menú, búsqueda global, notificaciones y tema. */
 export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
   const { data: settings } = useSettings();
+  const { session, users, switchOwner, logout } = useAuth();
   const updateSettings = useUpdateSettings();
   const { data: notifications = [] } = useApiQuery<AppNotification[]>(
     ["notifications"],
@@ -91,9 +94,35 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
           )}
         </div>
 
+        {session && (
+          session.role === "ADMIN" ? (
+            <div className="flex min-w-28 items-center gap-1 sm:min-w-40">
+              <Shield className="hidden h-4 w-4 text-primary sm:block" />
+              <Select
+                value={session.activeOwnerUserId}
+                onChange={(event) => void switchOwner(event.target.value)}
+                aria-label="Ver datos de usuario"
+                className="h-8 max-w-28 text-xs sm:max-w-40"
+              >
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.displayName} {user.role === "ADMIN" ? "(admin)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : (
+            <span className="hidden max-w-32 truncate px-2 text-xs text-muted-foreground sm:inline">
+              {session.displayName}
+            </span>
+          )
+        )}
         {/* Cambio de tema */}
         <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Cambiar tema">
           {settings?.theme === "dark" ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => void logout()} aria-label="Cerrar sesion">
+          <LogOut className="h-4.5 w-4.5" />
         </Button>
       </div>
     </header>

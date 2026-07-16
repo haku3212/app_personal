@@ -1,10 +1,9 @@
 <div align="center">
 
-# 💜 Personal Control
+# Personal Control
 
-**Aplicación de escritorio 100 % offline para administrar tu vida financiera:**
-ingresos, gastos, horas trabajadas, préstamos, metas de ahorro, calendario,
-notas, reportes y estadísticas.
+Aplicacion para administrar finanzas, horas trabajadas, prestamos, metas de
+ahorro, calendario, notas, reportes y estadisticas.
 
 React · TypeScript · Vite · TailwindCSS · Express · Prisma · SQLite · Electron · Recharts
 
@@ -12,46 +11,48 @@ React · TypeScript · Vite · TailwindCSS · Express · Prisma · SQLite · Ele
 
 ---
 
-## ✨ Características
+## Caracteristicas
 
-| Módulo | Qué hace |
+| Modulo | Que hace |
 |---|---|
-| **Dashboard** | Dinero disponible, ingresos/gastos del mes, balance, horas, pago esperado, ahorro, préstamos + 4 gráficos |
-| **Ingresos** | Registro con origen, categoría, método de pago, cuenta y observaciones |
-| **Gastos** | Categorías editables + totales diario / semanal / mensual / anual |
-| **Horas de trabajo** | Cálculo automático de horas reales, extras y pago esperado (por hora y/o fijo) |
-| **Préstamos** | "Yo presté" / "Me prestaron", abonos parciales, estados automáticos y vencimientos |
-| **Metas de ahorro** | Objetivos con aportes y barra de progreso |
-| **Control de efectivo** | Saldo en tiempo real por cuenta (caja, banco, efectivo) |
-| **Calendario** | Ingresos, gastos, horas y préstamos día por día |
-| **Notas** | Notas rápidas, pendientes y checklists |
-| **Estadísticas** | Promedios, mes más caro, mayores movimientos, pago promedio por hora |
-| **Reportes** | Exportación **Excel** y **PDF** filtrable por fechas y categoría |
-| **Respaldos** | Copias de la base SQLite con un botón, restauración e import/export |
-| **Búsqueda global** | `Ctrl + K` encuentra cualquier movimiento en toda la app |
-| **Notificaciones** | Préstamos por vencer, metas casi logradas, días sin registrar |
+| Dashboard | Dinero disponible, ingresos/gastos del mes, balance, horas, pago esperado, ahorro y prestamos |
+| Registro rapido | Captura gastos, ingresos y notas en pocos toques |
+| Ingresos | Registro con origen, categoria, metodo de pago, cuenta y observaciones |
+| Gastos | Categorias editables y totales diario/semanal/mensual/anual |
+| Presupuestos | Limites semanales, quincenales o mensuales por categoria |
+| Horas de trabajo | Calculo automatico de horas reales, extras y pago esperado |
+| Prestamos | "Yo preste" / "Me prestaron", abonos parciales, estados y vencimientos |
+| Metas de ahorro | Objetivos con aportes y barra de progreso |
+| Control de efectivo | Saldo en tiempo real por cuenta |
+| Calendario | Ingresos, gastos, horas y prestamos por dia |
+| Notas | Notas rapidas, pendientes y checklists |
+| Estadisticas | Promedios, meses destacados, mayores movimientos y pago por hora |
+| Reportes | Exportacion Excel y PDF filtrable por fechas y categoria |
+| Respaldos | Copias de la base en escritorio y respaldos JSON en PWA |
+| Multiusuario | Login local; el primer usuario es admin y puede ver todos los usuarios |
+| Busqueda global | `Ctrl + K` encuentra movimientos en toda la app |
+| Notificaciones | Prestamos por vencer, metas casi logradas y dias sin registrar |
 
-Tema claro/oscuro, animaciones suaves, interfaz estilo Notion/Linear, sin login
-(es solo para ti) y sin necesidad de internet.
+Tema claro/oscuro, interfaz de escritorio y variante web/PWA offline.
 
-## 🚀 Inicio rápido
+## Inicio rapido
 
-Requisitos: **Node.js 20+** y npm.
+Requisitos: Node.js 20+ y npm.
 
 ```bash
 git clone https://github.com/haku3212/app_personal.git
 cd app_personal
-node scripts/setup.mjs      # instala dependencias y crea la base de datos
-npm run dev                 # backend (4310) + frontend (5173) con hot-reload
+node scripts/setup.mjs
+npm run dev
 ```
 
-Abre `http://localhost:5173`. Para probar la ventana de escritorio en desarrollo:
+Abre `http://127.0.0.1:5174`. Para probar la ventana de escritorio:
 
 ```bash
-npm run dev:electron        # requiere `npm run dev` corriendo en otra terminal
+npm run dev:electron
 ```
 
-## 📦 Compilar el instalador de Windows
+## Windows
 
 ```bash
 npm run dist
@@ -60,45 +61,51 @@ npm run dist
 Genera el instalador NSIS en `release/`. La app empaquetada:
 
 - guarda la base de datos en `%APPDATA%/personal-control/`,
-- aplica las migraciones automáticamente al arrancar (runner embebido),
-- crea un respaldo automático al cerrar (conserva los últimos 10).
+- aplica migraciones al arrancar,
+- crea un respaldo automatico al cerrar.
 
-## 🧰 Scripts
+## PWA / Telefono
 
-| Comando | Descripción |
+La opcion sin Mac es usarla como PWA desde el navegador del telefono. En modo
+PWA usa la API local offline con almacenamiento del navegador, asi que no
+necesita el backend Express para registrar datos.
+
+```bash
+npm run build:pwa
+npm run preview:pwa
+```
+
+Detalles en [docs/PWA_TELEFONO.md](docs/PWA_TELEFONO.md).
+
+## Scripts
+
+| Comando | Descripcion |
 |---|---|
 | `npm run dev` | Backend + frontend en modo desarrollo |
 | `npm run dev:electron` | Ventana Electron apuntando al dev server |
-| `npm run build` | Compila backend, frontend y electron |
+| `npm run build` | Compila backend, frontend y Electron |
+| `npm run build:pwa` | Compila la PWA con API offline |
+| `npm run preview:pwa` | Sirve la PWA compilada para probar/instalar |
 | `npm run dist` | Build completo + instalador de Windows |
-| `npm run typecheck` | TypeScript estricto en los 3 procesos |
-| `npm run db:migrate` | Nueva migración de Prisma (desarrollo) |
+| `npm run typecheck` | TypeScript estricto |
+| `npm run db:migrate` | Nueva migracion de Prisma en desarrollo |
 | `npm run db:studio` | Prisma Studio para inspeccionar la base |
 
-## 🏗️ Arquitectura
+## Arquitectura
 
+```txt
+frontend/   React + Vite + Tailwind + Recharts
+backend/    Express + Prisma + Zod
+database/   schema.prisma + migraciones
+electron/   Proceso principal de escritorio
+docs/       Documentacion tecnica
+public/     Recursos estaticos
+scripts/    Utilidades
 ```
-frontend/   React + Vite + Tailwind + Recharts (SPA)
-backend/    Express + Prisma + Zod — un módulo por dominio en src/modules/
-database/   schema.prisma + migraciones versionadas
-electron/   Proceso principal + preload (la API viaja embebida en producción)
-docs/       Arquitectura, plan de desarrollo y diccionario de datos
-public/     Ícono de la app para el instalador
-scripts/    Utilidades (setup inicial)
-```
 
-Detalles completos en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md),
-[`docs/PLAN_DESARROLLO.md`](docs/PLAN_DESARROLLO.md) y
-[`docs/BASE_DE_DATOS.md`](docs/BASE_DE_DATOS.md).
+La UI usa `frontend/src/lib/api.ts`. En escritorio llama al backend HTTP; en PWA
+cambia automaticamente a `frontend/src/lib/mobileApi.ts`.
 
-### Agregar un módulo futuro (vehículos, inventario, cripto…)
+## Licencia
 
-1. Modelos en `database/prisma/schema.prisma` + `npm run db:migrate`.
-2. Carpeta nueva en `backend/src/modules/` + 1 línea en `routes.ts`.
-3. Página nueva en `frontend/src/pages/` + 1 entrada en `lib/navigation.ts`.
-
-La búsqueda, los respaldos y la estructura existente no se tocan.
-
-## 📄 Licencia
-
-[MIT](LICENSE) © haku3212
+[MIT](LICENSE) (c) haku3212

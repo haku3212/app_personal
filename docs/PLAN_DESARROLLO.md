@@ -52,7 +52,7 @@
 
 ## Fase 4 — Exportación y respaldos
 
-- [x] Reportes **Excel** (exceljs) y **PDF** (pdfkit) filtrables por fechas / categoría / tipo.
+- [x] Reportes **Excel** y **PDF** filtrables por fechas / categoría / tipo.
 - [x] Respaldos de la base SQLite con un botón + restauración + exportar/importar archivo.
 
 ## Fase 5 — Escritorio (Electron)

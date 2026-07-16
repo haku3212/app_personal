@@ -1,20 +1,15 @@
 /**
  * Cliente HTTP hacia la API local.
- * En desarrollo Vite proxya /api → 127.0.0.1:4310.
+ * En desarrollo Vite proxya /api al backend local configurado.
  * En producción (Electron) el frontend se sirve desde el mismo servidor.
  */
 
+import { ApiClientError } from "@/lib/apiError";
+import { isMobileApiEnabled, mobileApi } from "@/lib/mobileApi";
+
 const BASE = "/api";
 
-/** Error de la API con mensaje legible para mostrar en la UI. */
-export class ApiClientError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export { ApiClientError };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -35,17 +30,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string) => (isMobileApiEnabled() ? mobileApi.get<T>(path) : request<T>(path)),
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: body != null ? JSON.stringify(body) : undefined }),
+    isMobileApiEnabled()
+      ? mobileApi.post<T>(path, body)
+      : request<T>(path, { method: "POST", body: body != null ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+    isMobileApiEnabled()
+      ? mobileApi.put<T>(path, body)
+      : request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PATCH", body: body != null ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+    isMobileApiEnabled()
+      ? mobileApi.patch<T>(path, body)
+      : request<T>(path, { method: "PATCH", body: body != null ? JSON.stringify(body) : undefined }),
+  delete: <T>(path: string) =>
+    isMobileApiEnabled() ? mobileApi.delete<T>(path) : request<T>(path, { method: "DELETE" }),
 
   /** Descarga un archivo generado por la API (reportes, exportar base). */
   async download(path: string, fallbackName: string): Promise<void> {
+    if (isMobileApiEnabled()) return mobileApi.download(path, fallbackName);
     const res = await fetch(`${BASE}${path}`);
     if (!res.ok) throw new ApiClientError(res.status, "No se pudo generar el archivo");
     const blob = await res.blob();
@@ -61,6 +64,7 @@ export const api = {
 
   /** Sube un archivo binario crudo (importar base de datos). */
   async upload<T>(path: string, file: File): Promise<T> {
+    if (isMobileApiEnabled()) return mobileApi.upload<T>(path, file);
     const res = await fetch(`${BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/octet-stream" },
