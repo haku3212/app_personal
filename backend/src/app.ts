@@ -52,9 +52,9 @@ export interface StartedServer {
   close: () => void;
 }
 
-function listen(app: express.Express, port: number): Promise<Server> {
+function listen(app: express.Express, port: number, host: string): Promise<Server> {
   return new Promise((resolve, reject) => {
-    const server = app.listen(port, "127.0.0.1");
+    const server = app.listen(port, host);
 
     const onError = (err: NodeJS.ErrnoException) => {
       server.off("listening", onListening);
@@ -85,9 +85,10 @@ export async function startServer(
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const candidate = port + attempt;
+    const host = process.env.HOST ?? (process.env.PORT ? "0.0.0.0" : "127.0.0.1");
     try {
-      const server = await listen(app, candidate);
-      const url = `http://127.0.0.1:${candidate}`;
+      const server = await listen(app, candidate, host);
+      const url = `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${candidate}`;
       if (candidate !== port) {
         console.warn(`[api] Puerto ${port} ocupado; usando ${candidate}.`);
       }

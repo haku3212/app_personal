@@ -31,6 +31,26 @@ VITE_API_URL=https://TU-BACKEND.example.com
 
 La app prioriza esa URL y deja de usar la base local para las llamadas API.
 
+## Backend recomendado: Render con disco persistente
+
+Para mantener SQLite sin migrar a Postgres, el backend necesita un disco
+persistente. En Render:
+
+- Tipo: `Web Service`
+- Branch: `claude-personal-control`
+- Build command: `npm install && npm run db:generate && npm run build:backend`
+- Start command: `npm run start --workspace backend`
+- Environment variables:
+  - `NODE_ENV=production`
+  - `DATABASE_URL=file:/data/personal-control.db`
+  - `PC_DATA_DIR=/data`
+- Disk:
+  - Mount path: `/data`
+  - Size: 1 GB o mas
+
+Cuando Render entregue la URL publica del backend, poner esa URL en Netlify como
+`VITE_API_URL` y redeployar el frontend.
+
 ## Nota de admin
 
 El primer usuario creado en una base online vacia queda como `ADMIN`. Los
