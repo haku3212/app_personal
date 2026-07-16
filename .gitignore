@@ -1,0 +1,35 @@
+# Dependencias
+node_modules/
+
+# Builds
+dist/
+build/
+release/
+frontend/dist/
+backend/dist/
+electron/dist/
+
+# Base de datos local y respaldos
+*.sqlite
+*.sqlite-journal
+*.db
+data/
+backups/
+
+# Prisma
+database/prisma/dev.db*
+
+# Entorno
+.env
+.env.local
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
