@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
-import { Eye, KeyRound, Lock, Shield, ShieldCheck, Unlock, UserPlus } from "lucide-react";
+import { Download, Eye, KeyRound, Lock, Shield, ShieldCheck, Unlock, Upload, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,12 @@ import {
 } from "@/lib/auth";
 
 const STORE_PREFIX = "personal-control-mobile-db-v1";
+const USER_DATA_PREFIXES = [
+  "personal-control-mobile-db-v1",
+  "personal-control-budgets-v1",
+  "personal-control-recurring-v1",
+  "personal-control-cashbox-v1",
+];
 
 interface UserSummary {
   incomes: number;
@@ -73,6 +79,8 @@ export function AdminUsers() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const importInput = useRef<HTMLInputElement>(null);
+  const [importingUser, setImportingUser] = useState<LocalUser | null>(null);
   const summaries = useMemo(
     () => new Map(users.map((user) => [user.id, getUserSummary(user.id)])),
     [users],
@@ -134,6 +142,35 @@ export function AdminUsers() {
       await setUserRole(user.id, role);
       await refreshUsers();
       setMessage("Rol actualizado.");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const exportUser = (user: LocalUser) => {
+    const data = Object.fromEntries(
+      USER_DATA_PREFIXES.map((prefix) => [`${prefix}:${user.id}`, localStorage.getItem(`${prefix}:${user.id}`)]),
+    );
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), user: { id: user.id, username: user.username, displayName: user.displayName }, data }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `personal-control-${user.username}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importUserData = async (file: File, user: LocalUser) => {
+    resetMessages();
+    try {
+      const parsed = JSON.parse(await file.text()) as { data?: Record<string, string | null> };
+      if (!parsed.data) throw new Error("Archivo invalido");
+      for (const prefix of USER_DATA_PREFIXES) {
+        const entry = Object.entries(parsed.data).find(([key]) => key.startsWith(`${prefix}:`));
+        const targetKey = `${prefix}:${user.id}`;
+        if (entry?.[1]) localStorage.setItem(targetKey, entry[1]);
+      }
+      setMessage(`Datos importados para ${user.displayName}.`);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -216,6 +253,19 @@ export function AdminUsers() {
                   <Button size="sm" variant="outline" onClick={() => void switchOwner(user.id)} disabled={isViewing}>
                     <Eye className="h-3.5 w-3.5" /> Ver datos
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => exportUser(user)}>
+                    <Download className="h-3.5 w-3.5" /> Exportar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setImportingUser(user);
+                      importInput.current?.click();
+                    }}
+                  >
+                    <Upload className="h-3.5 w-3.5" /> Importar
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setPasswordUser(user)}>
                     <KeyRound className="h-3.5 w-3.5" /> Contrasena
                   </Button>
@@ -242,6 +292,18 @@ export function AdminUsers() {
           );
         })}
       </div>
+
+      <input
+        ref={importInput}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file && importingUser) void importUserData(file, importingUser);
+          event.target.value = "";
+        }}
+      />
 
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="Crear usuario" width="max-w-sm">
         <div className="space-y-3">

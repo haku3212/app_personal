@@ -279,9 +279,17 @@ function listExpenses(db: MobileDb, query: URLSearchParams) {
   const from = query.get("from");
   const to = query.get("to");
   const categoryId = query.get("categoryId");
+  const accountId = query.get("accountId");
+  const paymentMethod = query.get("paymentMethod");
+  const min = query.get("min");
+  const max = query.get("max");
   const items = db.expenses
     .filter((item) => inRange(item.date, from, to))
     .filter((item) => !categoryId || item.categoryId === Number(categoryId))
+    .filter((item) => !accountId || item.accountId === Number(accountId))
+    .filter((item) => !paymentMethod || item.paymentMethod === paymentMethod)
+    .filter((item) => !min || item.amount >= Number(min))
+    .filter((item) => !max || item.amount <= Number(max))
     .sort((a, b) => b.date.localeCompare(a.date))
     .map((item) => enrichExpense(db, item));
   return { items, total: round2(items.reduce((sum, item) => sum + item.amount, 0)) };

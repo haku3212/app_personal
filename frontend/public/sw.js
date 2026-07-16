@@ -1,4 +1,4 @@
-const CACHE_NAME = "personal-control-pwa-v6";
+const CACHE_NAME = "personal-control-pwa-v7";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/offline.html", "/icon.svg", "/maskable-icon.svg"];
 
 self.addEventListener("install", (event) => {

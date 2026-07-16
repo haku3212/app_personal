@@ -9,6 +9,10 @@ const QuickAdd = lazy(() => import("@/pages/QuickAdd").then((m) => ({ default: m
 const Incomes = lazy(() => import("@/pages/Incomes").then((m) => ({ default: m.Incomes })));
 const Expenses = lazy(() => import("@/pages/Expenses").then((m) => ({ default: m.Expenses })));
 const Budgets = lazy(() => import("@/pages/Budgets").then((m) => ({ default: m.Budgets })));
+const DailyCashBox = lazy(() => import("@/pages/DailyCashBox").then((m) => ({ default: m.DailyCashBox })));
+const RecurringExpenses = lazy(() =>
+  import("@/pages/RecurringExpenses").then((m) => ({ default: m.RecurringExpenses })),
+);
 const WorkLogs = lazy(() => import("@/pages/WorkLogs").then((m) => ({ default: m.WorkLogs })));
 const Loans = lazy(() => import("@/pages/Loans").then((m) => ({ default: m.Loans })));
 const Goals = lazy(() => import("@/pages/Goals").then((m) => ({ default: m.Goals })));
@@ -46,7 +50,9 @@ export function App() {
           <Route path="/rapido" element={<QuickAdd />} />
           <Route path="/ingresos" element={<Incomes />} />
           <Route path="/gastos" element={<Expenses />} />
+          <Route path="/caja" element={<DailyCashBox />} />
           <Route path="/presupuestos" element={<Budgets />} />
+          <Route path="/recurrentes" element={<RecurringExpenses />} />
           <Route path="/horas" element={<WorkLogs />} />
           <Route path="/prestamos" element={<Loans />} />
           <Route path="/metas" element={<Goals />} />

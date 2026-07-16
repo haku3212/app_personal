@@ -34,11 +34,14 @@ export const expensesRouter = Router();
 expensesRouter.get(
   "/",
   asyncHandler(async (req, res) => {
-    const { from, to, categoryId, q } = req.query as Record<string, string | undefined>;
+    const { from, to, categoryId, accountId, paymentMethod, min, max, q } = req.query as Record<string, string | undefined>;
     const expenses = await prisma().expense.findMany({
       where: {
         date: rangeFilter(from, to),
         categoryId: categoryId ? Number(categoryId) : undefined,
+        accountId: accountId ? Number(accountId) : undefined,
+        paymentMethod: paymentMethod || undefined,
+        amount: min || max ? { gte: min ? Number(min) : undefined, lte: max ? Number(max) : undefined } : undefined,
         ...(q
           ? { OR: [{ description: { contains: q } }, { notes: { contains: q } }] }
           : {}),

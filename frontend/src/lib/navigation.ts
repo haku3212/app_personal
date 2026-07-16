@@ -1,6 +1,7 @@
 import {
   BarChart3,
   CalendarDays,
+  CalendarClock,
   Clock,
   FileText,
   HandCoins,
@@ -40,7 +41,9 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
       { to: "/ingresos", label: "Ingresos", icon: TrendingUp },
       { to: "/gastos", label: "Gastos", icon: TrendingDown },
       { to: "/efectivo", label: "Efectivo", icon: Wallet },
+      { to: "/caja", label: "Caja diaria", icon: Wallet },
       { to: "/presupuestos", label: "Presupuestos", icon: WalletCards },
+      { to: "/recurrentes", label: "Recurrentes", icon: CalendarClock },
       { to: "/prestamos", label: "Prestamos", icon: HandCoins },
       { to: "/metas", label: "Metas de ahorro", icon: PiggyBank },
     ],

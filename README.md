@@ -20,6 +20,8 @@ React · TypeScript · Vite · TailwindCSS · Express · Prisma · SQLite · Ele
 | Ingresos | Registro con origen, categoria, metodo de pago, cuenta y observaciones |
 | Gastos | Categorias editables y totales diario/semanal/mensual/anual |
 | Presupuestos | Limites semanales, quincenales o mensuales por categoria |
+| Gastos recurrentes | Pagos fijos, cuotas y suscripciones con generacion manual |
+| Caja diaria | Apertura, movimientos en efectivo, cierre y diferencia |
 | Horas de trabajo | Calculo automatico de horas reales, extras y pago esperado |
 | Prestamos | "Yo preste" / "Me prestaron", abonos parciales, estados y vencimientos |
 | Metas de ahorro | Objetivos con aportes y barra de progreso |
@@ -30,6 +32,7 @@ React · TypeScript · Vite · TailwindCSS · Express · Prisma · SQLite · Ele
 | Reportes | Exportacion Excel y PDF filtrable por fechas y categoria |
 | Respaldos | Copias de la base en escritorio y respaldos JSON en PWA |
 | Multiusuario | Login local; el primer usuario es admin y puede ver todos los usuarios |
+| Admin | Exportacion/importacion de datos por usuario |
 | Busqueda global | `Ctrl + K` encuentra movimientos en toda la app |
 | Notificaciones | Prestamos por vencer, metas casi logradas y dias sin registrar |
 

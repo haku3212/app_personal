@@ -1,11 +1,14 @@
 import { Bell, LogOut, Menu, Moon, Search, Shield, Sun } from "lucide-react";
-import { useState } from "react";
+import dayjs from "dayjs";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useApiQuery } from "@/hooks/useCrud";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/hooks/useAuth";
-import type { AppNotification } from "@/types";
+import { listBudgets, type Budget } from "@/lib/budgets";
+import { inputDate } from "@/lib/format";
+import type { AppNotification, Expense } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface TopbarProps {
@@ -28,7 +31,36 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
     ["notifications"],
     "/notifications",
   );
+  const monthStart = inputDate(dayjs().startOf("month").toDate());
+  const monthEnd = inputDate(dayjs().endOf("month").toDate());
+  const { data: monthExpenses } = useApiQuery<{ items: Expense[]; total: number }>(
+    ["notifications", "budget-expenses", monthStart, monthEnd],
+    `/expenses?from=${monthStart}&to=${monthEnd}`,
+  );
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    void listBudgets().then(setBudgets);
+  }, [session?.activeOwnerUserId]);
+
+  const budgetNotifications = useMemo<AppNotification[]>(() => {
+    const items: AppNotification[] = [];
+    for (const budget of budgets) {
+      if (budget.period !== "MONTHLY") continue;
+      const spent = (monthExpenses?.items ?? [])
+        .filter((expense) => expense.categoryId === budget.categoryId)
+        .reduce((sum, expense) => sum + expense.amount, 0);
+      const percent = budget.limit > 0 ? (spent / budget.limit) * 100 : 0;
+      if (percent >= 100) {
+        items.push({ id: `budget-over-${budget.id}`, level: "danger", title: "Presupuesto excedido", detail: `Usaste ${Math.round(percent)}% de un presupuesto mensual.` });
+      } else if (percent >= 80) {
+        items.push({ id: `budget-warn-${budget.id}`, level: "warning", title: "Presupuesto cerca del limite", detail: `Ya vas por ${Math.round(percent)}% del presupuesto mensual.` });
+      }
+    }
+    return items;
+  }, [budgets, monthExpenses?.items]);
+  const allNotifications = [...budgetNotifications, ...notifications];
 
   const isDark = document.documentElement.classList.contains("dark");
   const toggleTheme = () => updateSettings.mutate({ theme: isDark ? "light" : "dark" });
@@ -61,9 +93,9 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
             aria-label="Notificaciones"
           >
             <Bell className="h-4.5 w-4.5" />
-            {notifications.length > 0 && (
+            {allNotifications.length > 0 && (
               <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-                {notifications.length}
+                {allNotifications.length}
               </span>
             )}
           </Button>
@@ -74,12 +106,12 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
                 <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                   Notificaciones
                 </p>
-                {notifications.length === 0 ? (
+                {allNotifications.length === 0 ? (
                   <p className="px-2 py-4 text-center text-xs text-muted-foreground">
                     Todo en orden ✨
                   </p>
                 ) : (
-                  notifications.map((n) => (
+                  allNotifications.map((n) => (
                     <div key={n.id} className="flex gap-2 rounded-lg px-2 py-2 hover:bg-accent">
                       <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", levelDot[n.level])} />
                       <div className="min-w-0">
