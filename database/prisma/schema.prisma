@@ -1,0 +1,187 @@
+// ============================================================================
+// PERSONAL CONTROL — Esquema de base de datos (SQLite + Prisma)
+// ----------------------------------------------------------------------------
+// Nota: SQLite no soporta enums nativos, por lo que los campos "tipo/estado"
+// son String y se restringen con Zod en la capa de validación del backend:
+//   Category.kind  → "INCOME" | "EXPENSE"
+//   Account.type   → "CASH" | "BANK" | "OTHER"
+//   Loan.type      → "LENT" (yo presté) | "BORROWED" (me prestaron)
+//   Loan.status    → "PENDING" | "PARTIAL" | "PAID"
+// Los saldos NUNCA se almacenan: se derivan de los movimientos.
+// ============================================================================
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/// Ajustes globales de la aplicación (fila única, id = 1).
+model Setting {
+  id          Int      @id @default(1)
+  currency    String   @default("Bs.") // Moneda mostrada en toda la app
+  theme       String   @default("dark") // "light" | "dark" | "system"
+  accentColor String   @default("violet")
+  autoBackup  Boolean  @default(true) // Respaldo automático al cerrar
+  updatedAt   DateTime @updatedAt
+}
+
+/// Cuentas de dinero: caja, banco, efectivo, etc.
+model Account {
+  id             Int       @id @default(autoincrement())
+  name           String    @unique
+  type           String    @default("CASH") // CASH | BANK | OTHER
+  initialBalance Float     @default(0)
+  icon           String?
+  archived       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  incomes        Income[]
+  expenses       Expense[]
+}
+
+/// Categorías editables, separadas por tipo (ingreso / gasto).
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String
+  kind     String // INCOME | EXPENSE
+  color    String    @default("#8b5cf6")
+  icon     String?
+  incomes  Income[]
+  expenses Expense[]
+
+  @@unique([name, kind])
+}
+
+/// Ingresos de dinero.
+model Income {
+  id            Int       @id @default(autoincrement())
+  date          DateTime
+  amount        Float
+  source        String // Trabajo, Madre, Venta, Freelance, Otros...
+  description   String?
+  paymentMethod String    @default("Efectivo")
+  notes         String?
+  categoryId    Int?
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  accountId     Int?
+  account       Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([date])
+}
+
+/// Gastos de dinero.
+model Expense {
+  id            Int       @id @default(autoincrement())
+  date          DateTime
+  amount        Float
+  description   String?
+  paymentMethod String    @default("Efectivo")
+  notes         String?
+  categoryId    Int?
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  accountId     Int?
+  account       Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([date])
+}
+
+/// Jornadas de trabajo. `hours` y `expectedPay` se calculan en el backend
+/// (hora fin - hora inicio - descanso; horas * pago/hora + pago fijo).
+model WorkLog {
+  id           Int      @id @default(autoincrement())
+  date         DateTime
+  startTime    String // "08:00"
+  endTime      String // "17:30"
+  breakMinutes Int      @default(0)
+  hours        Float // Horas reales trabajadas (calculado)
+  overtime     Float    @default(0) // Horas por encima de 8h (calculado)
+  place        String?
+  company      String?
+  project      String?
+  description  String?
+  hourlyRate   Float? // Pago por hora (opcional)
+  fixedPay     Float? // Pago fijo de la jornada (opcional)
+  expectedPay  Float // Pago esperado total (calculado)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([date])
+}
+
+/// Préstamos: dinero que presté (LENT) o que me prestaron (BORROWED).
+model Loan {
+  id       Int           @id @default(autoincrement())
+  type     String // LENT | BORROWED
+  person   String
+  amount   Float
+  date     DateTime
+  dueDate  DateTime?
+  status   String        @default("PENDING") // PENDING | PARTIAL | PAID
+  notes    String?
+  payments LoanPayment[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([date])
+}
+
+/// Abonos parciales de un préstamo (mantiene el historial normalizado).
+model LoanPayment {
+  id     Int      @id @default(autoincrement())
+  loanId Int
+  loan   Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  date   DateTime
+  amount Float
+  note   String?
+}
+
+/// Metas de ahorro (comprar computadora, viaje, etc.).
+model SavingGoal {
+  id            Int                @id @default(autoincrement())
+  name          String
+  targetAmount  Float
+  targetDate    DateTime?
+  color         String             @default("#22c55e")
+  icon          String?
+  achieved      Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  contributions GoalContribution[]
+}
+
+/// Aportes a una meta de ahorro. El progreso = suma de aportes.
+model GoalContribution {
+  id     Int        @id @default(autoincrement())
+  goalId Int
+  goal   SavingGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  date   DateTime
+  amount Float
+  note   String?
+}
+
+/// Notas rápidas con checklist opcional.
+model Note {
+  id        Int        @id @default(autoincrement())
+  title     String
+  content   String     @default("")
+  pinned    Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     NoteItem[]
+}
+
+/// Ítems de checklist dentro de una nota.
+model NoteItem {
+  id     Int     @id @default(autoincrement())
+  noteId Int
+  note   Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  text   String
+  done   Boolean @default(false)
+  order  Int     @default(0)
+}
