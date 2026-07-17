@@ -1,12 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { Edit3, Home, Plus, ReceiptText, TrendingDown } from "lucide-react";
+import { Edit3, Home, Plus, TrendingDown, UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { to: "/", label: "Inicio", icon: Home },
   { to: "/gastos", label: "Gastos", icon: TrendingDown },
   { to: "/rapido", label: "Registrar", icon: Plus, primary: true },
-  { to: "/reportes", label: "Reportes", icon: ReceiptText },
+  { to: "/importar-banco", label: "Banco", icon: UploadCloud },
   { to: "/editar-todo", label: "Editar", icon: Edit3 },
 ];
 
