@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { ApiError, asyncHandler, parseBody, parseId } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { requireAdmin, requireUser } from "../auth/auth.middleware";
 import { hashPassword } from "../auth/auth.service";
 import { seedUserDefaults } from "../../seed";
@@ -95,6 +96,7 @@ usersRouter.post(
       },
     });
     await seedUserDefaults(user.id);
+    await audit(req, "CREATE", "user", user.id, `Usuario creado: ${user.displayName}`);
     res.status(201).json(publicUser(user));
   }),
 );
@@ -123,6 +125,7 @@ usersRouter.patch(
         lockedAt: data.locked == null ? undefined : data.locked ? new Date() : null,
       },
     });
+    await audit(req, "UPDATE", "user", user.id, `Usuario editado: ${user.displayName}`);
     res.json(publicUser(user));
   }),
 );

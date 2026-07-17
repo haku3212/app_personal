@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 import { rangeFilter } from "../../utils/dates";
 
@@ -61,6 +62,7 @@ incomesRouter.post(
       data: { ...data, ...ownerData(req), amount: round2(data.amount) },
       include,
     });
+    await audit(req, "CREATE", "income", created.id, `Ingreso creado: ${created.source} (${created.amount})`);
     res.status(201).json(created);
   }),
 );
@@ -78,6 +80,7 @@ incomesRouter.put(
       data: { ...data, ...(data.amount != null ? { amount: round2(data.amount) } : {}) },
       include,
     });
+    await audit(req, "UPDATE", "income", updated.id, `Ingreso editado: ${updated.source} (${updated.amount})`);
     res.json(updated);
   }),
 );
@@ -87,7 +90,9 @@ incomesRouter.delete(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     await ensureOwned(req, "income", id);
+    const current = await prisma().income.findUnique({ where: { id } });
     await prisma().income.delete({ where: { id } });
+    await audit(req, "DELETE", "income", id, `Ingreso eliminado: ${current?.source ?? id}`);
     res.json({ ok: true });
   }),
 );

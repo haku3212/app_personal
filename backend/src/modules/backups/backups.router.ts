@@ -9,7 +9,9 @@ import dayjs from "dayjs";
 import express from "express";
 import { prisma, resetPrisma } from "../../lib/prisma";
 import { ApiError, asyncHandler } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { backupsDir, databaseFile } from "../../config/paths";
+import { ownerWhere } from "../../lib/owner";
 
 /** Nombre seguro dentro del directorio de respaldos (evita path traversal). */
 function safeBackupPath(name: string): string {
@@ -47,8 +49,9 @@ backupsRouter.get(
 /** POST /api/backups — crear respaldo ahora. */
 backupsRouter.post(
   "/",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const name = createBackup();
+    await audit(req, "CREATE", "backup", name, `Respaldo creado: ${name}`);
     res.status(201).json({ ok: true, name });
   }),
 );
@@ -67,6 +70,7 @@ backupsRouter.post(
     await resetPrisma();
     fs.copyFileSync(file, databaseFile());
     prisma(); // reconecta
+    await audit(req, "RESTORE", "backup", req.params.name, `Respaldo restaurado: ${req.params.name}`);
     res.json({ ok: true });
   }),
 );
@@ -84,8 +88,35 @@ backupsRouter.delete(
 /** GET /api/backups/export — descargar la base de datos actual. */
 backupsRouter.get(
   "/export",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    await audit(req, "EXPORT", "backup", null, "Base de datos exportada");
     res.download(databaseFile(), `personal-control-${dayjs().format("YYYY-MM-DD")}.sqlite`);
+  }),
+);
+
+/** GET /api/backups/export-json - exporta datos del usuario activo en JSON. */
+backupsRouter.get(
+  "/export-json",
+  asyncHandler(async (req, res) => {
+    const db = prisma();
+    const owned = ownerWhere(req);
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      user: req.user ? { id: req.user.id, username: req.user.username, displayName: req.user.displayName } : null,
+      settings: await db.setting.findUnique({ where: { id: 1 } }),
+      accounts: await db.account.findMany({ where: owned }),
+      categories: await db.category.findMany({ where: owned }),
+      incomes: await db.income.findMany({ where: owned }),
+      expenses: await db.expense.findMany({ where: owned }),
+      worklogs: await db.workLog.findMany({ where: owned }),
+      loans: await db.loan.findMany({ where: owned, include: { payments: true } }),
+      goals: await db.savingGoal.findMany({ where: owned, include: { contributions: true } }),
+      notes: await db.note.findMany({ where: owned, include: { items: true } }),
+    };
+    await audit(req, "EXPORT", "backup", "json", "Datos del usuario exportados en JSON");
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="personal-control-${dayjs().format("YYYY-MM-DD")}.json"`);
+    res.json(payload);
   }),
 );
 
@@ -109,6 +140,7 @@ backupsRouter.post(
     await resetPrisma();
     fs.writeFileSync(databaseFile(), body);
     prisma();
+    await audit(req, "IMPORT", "backup", null, "Base de datos importada");
     res.json({ ok: true });
   }),
 );

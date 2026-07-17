@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 
 const noteSchema = z.object({
@@ -50,6 +51,7 @@ notesRouter.post(
       },
       include,
     });
+    await audit(req, "CREATE", "note", created.id, `Nota creada: ${created.title}`);
     res.status(201).json(created);
   }),
 );
@@ -72,6 +74,7 @@ notesRouter.put(
         include,
       }),
     ]);
+    await audit(req, "UPDATE", "note", updated.id, `Nota editada: ${updated.title}`);
     res.json(updated);
   }),
 );
@@ -96,7 +99,9 @@ notesRouter.delete(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     await ensureOwned(req, "note", id);
+    const current = await prisma().note.findUnique({ where: { id } });
     await prisma().note.delete({ where: { id } });
+    await audit(req, "DELETE", "note", id, `Nota eliminada: ${current?.title ?? id}`);
     res.json({ ok: true });
   }),
 );

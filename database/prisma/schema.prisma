@@ -38,6 +38,7 @@ model User {
   loans        Loan[]
   savingGoals  SavingGoal[]
   notes        Note[]
+  auditLogs    AuditLog[]
 }
 
 model Session {
@@ -246,4 +247,21 @@ model NoteItem {
   text   String
   done   Boolean @default(false)
   order  Int     @default(0)
+}
+
+/// Auditoria administrativa de acciones importantes.
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  actorId     Int?
+  actor       User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorName   String?
+  action      String   // CREATE | UPDATE | DELETE | RESTORE | IMPORT | EXPORT
+  entity      String
+  entityId    String?
+  description String
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entity])
+  @@index([createdAt])
 }

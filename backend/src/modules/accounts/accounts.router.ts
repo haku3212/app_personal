@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 
 const accountSchema = z.object({
@@ -46,6 +47,7 @@ accountsRouter.post(
   asyncHandler(async (req, res) => {
     const data = parseBody(accountSchema, req.body);
     const created = await prisma().account.create({ data: { ...data, ...ownerData(req) } });
+    await audit(req, "CREATE", "account", created.id, `Cuenta creada: ${created.name}`);
     res.status(201).json({ ...created, balance: created.initialBalance });
   }),
 );
@@ -57,6 +59,7 @@ accountsRouter.put(
     const data = parseBody(accountSchema.partial(), req.body);
     await ensureOwned(req, "account", id);
     const updated = await prisma().account.update({ where: { id }, data });
+    await audit(req, "UPDATE", "account", updated.id, `Cuenta editada: ${updated.name}`);
     res.json({ ...updated, balance: await accountBalance(id) });
   }),
 );
@@ -66,7 +69,9 @@ accountsRouter.delete(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     await ensureOwned(req, "account", id);
+    const current = await prisma().account.findUnique({ where: { id } });
     await prisma().account.delete({ where: { id } });
+    await audit(req, "DELETE", "account", id, `Cuenta eliminada: ${current?.name ?? id}`);
     res.json({ ok: true });
   }),
 );

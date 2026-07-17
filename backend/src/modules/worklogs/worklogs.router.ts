@@ -7,6 +7,7 @@ import { z } from "zod";
 import dayjs from "dayjs";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 import { lastMonths, monthRange, rangeFilter, weekRange } from "../../utils/dates";
 import { computeWork } from "../../utils/worklog";
@@ -109,6 +110,7 @@ worklogsRouter.post(
     const data = parseBody(workLogSchema, req.body);
     const computed = computeWork(data);
     const created = await prisma().workLog.create({ data: { ...data, ...ownerData(req), ...computed } });
+    await audit(req, "CREATE", "workLog", created.id, `Jornada creada: ${dayjs(created.date).format("YYYY-MM-DD")}`);
     res.status(201).json(created);
   }),
 );
@@ -127,6 +129,7 @@ worklogsRouter.put(
       where: { id },
       data: { ...patch, ...computed },
     });
+    await audit(req, "UPDATE", "workLog", updated.id, `Jornada editada: ${dayjs(updated.date).format("YYYY-MM-DD")}`);
     res.json(updated);
   }),
 );
@@ -136,7 +139,9 @@ worklogsRouter.delete(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     await ensureOwned(req, "workLog", id);
+    const current = await prisma().workLog.findUnique({ where: { id } });
     await prisma().workLog.delete({ where: { id } });
+    await audit(req, "DELETE", "workLog", id, `Jornada eliminada: ${current ? dayjs(current.date).format("YYYY-MM-DD") : id}`);
     res.json({ ok: true });
   }),
 );

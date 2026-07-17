@@ -6,6 +6,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { ApiError, asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 import { rangeFilter } from "../../utils/dates";
 
@@ -143,6 +144,7 @@ loansRouter.post(
       data: { ...data, ...ownerData(req), amount: round2(data.amount), interestRate: round2(data.interestRate) },
       include: { payments: true },
     });
+    await audit(req, "CREATE", "loan", created.id, `Prestamo creado: ${created.person} (${created.amount})`);
     res.status(201).json(withTotals(created));
   }),
 );
@@ -167,6 +169,7 @@ loansRouter.put(
       data: { ...patch, amount, interestRate, status: statusFor(amount, principalPaid, interestExpected, interestPaid) },
       include: { payments: { orderBy: { date: "asc" } } },
     });
+    await audit(req, "UPDATE", "loan", updated.id, `Prestamo editado: ${updated.person} (${updated.amount})`);
     res.json(withTotals(updated));
   }),
 );
@@ -195,6 +198,7 @@ loansRouter.post(
         loanId: id,
       },
     });
+    await audit(req, "CREATE", "loanPayment", id, `Pago de prestamo registrado para ${loan.person}`);
     const updated = await updateLoanStatus(id);
     res.status(201).json(withTotals(updated));
   }),
@@ -226,6 +230,7 @@ loansRouter.put(
         interestAmount,
       },
     });
+    await audit(req, "UPDATE", "loanPayment", paymentId, `Pago de prestamo editado para ${loan.person}`);
     const updated = await updateLoanStatus(id);
     res.json(withTotals(updated));
   }),
@@ -240,6 +245,7 @@ loansRouter.delete(
     const payment = await prisma().loanPayment.findFirst({ where: { id: paymentId, loanId: id } });
     if (!payment) throw new ApiError(404, "Pago no encontrado");
     await prisma().loanPayment.delete({ where: { id: paymentId } });
+    await audit(req, "DELETE", "loanPayment", paymentId, `Pago de prestamo eliminado`);
     const updated = await updateLoanStatus(id);
     res.json(withTotals(updated));
   }),
@@ -250,7 +256,9 @@ loansRouter.delete(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     await ensureOwned(req, "loan", id);
+    const current = await prisma().loan.findUnique({ where: { id } });
     await prisma().loan.delete({ where: { id } });
+    await audit(req, "DELETE", "loan", id, `Prestamo eliminado: ${current?.person ?? id}`);
     res.json({ ok: true });
   }),
 );

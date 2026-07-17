@@ -1,13 +1,13 @@
 import { NavLink } from "react-router-dom";
-import { Home, MoreHorizontal, Plus, ReceiptText, TrendingDown } from "lucide-react";
+import { Edit3, Home, Plus, ReceiptText, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { to: "/", label: "Inicio", icon: Home },
   { to: "/gastos", label: "Gastos", icon: TrendingDown },
   { to: "/rapido", label: "Registrar", icon: Plus, primary: true },
-  { to: "/presupuestos", label: "Control", icon: ReceiptText },
-  { to: "/ajustes", label: "Mas", icon: MoreHorizontal },
+  { to: "/reportes", label: "Reportes", icon: ReceiptText },
+  { to: "/editar-todo", label: "Editar", icon: Edit3 },
 ];
 
 export function MobileNav() {

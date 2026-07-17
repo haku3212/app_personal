@@ -3,6 +3,8 @@ import {
   CalendarDays,
   CalendarClock,
   Clock,
+  ClipboardList,
+  Edit3,
   FileText,
   HandCoins,
   LayoutDashboard,
@@ -57,6 +59,8 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { to: "/notas", label: "Notas", icon: StickyNote },
       { to: "/reportes", label: "Reportes", icon: FileText },
+      { to: "/editar-todo", label: "Editar todo", icon: Edit3 },
+      { to: "/auditoria", label: "Auditoria", icon: ClipboardList, adminOnly: true },
       { to: "/admin", label: "Admin", icon: Shield, adminOnly: true },
       { to: "/ajustes", label: "Ajustes", icon: Settings },
     ],

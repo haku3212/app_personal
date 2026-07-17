@@ -202,6 +202,36 @@ export interface AppNotification {
   detail: string;
 }
 
+export interface ReportInsights {
+  periods: {
+    label: string;
+    from: string;
+    to: string;
+    income: number;
+    expense: number;
+    profit: number;
+  }[];
+  topCategories: {
+    name: string;
+    color: string;
+    amount: number;
+    count: number;
+    percent: number;
+  }[];
+  dangerCategory: ReportInsights["topCategories"][number] | null;
+}
+
+export interface AuditLog {
+  id: number;
+  actorId: number | null;
+  actorName: string | null;
+  action: "CREATE" | "UPDATE" | "DELETE" | "RESTORE" | "IMPORT" | "EXPORT";
+  entity: string;
+  entityId: string | null;
+  description: string;
+  createdAt: string;
+}
+
 export interface BackupFile {
   name: string;
   size: number;

@@ -19,6 +19,7 @@ import type {
   SavingGoal,
   SearchResult,
   Setting,
+  ReportInsights,
   StatsData,
   WorkLog,
   WorkSummary,
@@ -528,6 +529,49 @@ function search(db: MobileDb, q: string): SearchResult[] {
   ].slice(0, 25);
 }
 
+function reportInsights(db: MobileDb): ReportInsights {
+  const now = dayjs();
+  const periods = [
+    { label: "Esta semana", from: now.startOf("week"), to: now.endOf("week") },
+    {
+      label: "Esta quincena",
+      from: now.date() <= 15 ? now.startOf("month") : now.date(16).startOf("day"),
+      to: now.date() <= 15 ? now.date(15).endOf("day") : now.endOf("month"),
+    },
+    { label: "Este mes", from: now.startOf("month"), to: now.endOf("month") },
+  ].map((period) => {
+    const income = round2(
+      db.incomes.filter((item) => inRange(item.date, period.from.format("YYYY-MM-DD"), period.to.format("YYYY-MM-DD"))).reduce((sum, item) => sum + item.amount, 0),
+    );
+    const expense = round2(
+      db.expenses.filter((item) => inRange(item.date, period.from.format("YYYY-MM-DD"), period.to.format("YYYY-MM-DD"))).reduce((sum, item) => sum + item.amount, 0),
+    );
+    return {
+      label: period.label,
+      from: period.from.format("YYYY-MM-DD"),
+      to: period.to.format("YYYY-MM-DD"),
+      income,
+      expense,
+      profit: round2(income - expense),
+    };
+  });
+  const month = periods[2];
+  const byCategory = new Map<string, { name: string; color: string; amount: number; count: number }>();
+  for (const expense of db.expenses.filter((item) => inRange(item.date, month?.from, month?.to))) {
+    const category = db.categories.find((item) => item.id === expense.categoryId);
+    const name = category?.name ?? "Sin categoria";
+    const current = byCategory.get(name) ?? { name, color: category?.color ?? "#64748b", amount: 0, count: 0 };
+    current.amount = round2(current.amount + expense.amount);
+    current.count += 1;
+    byCategory.set(name, current);
+  }
+  const topCategories = [...byCategory.values()]
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 8)
+    .map((item) => ({ ...item, percent: month && month.expense > 0 ? round2((item.amount / month.expense) * 100) : 0 }));
+  return { periods, topCategories, dangerCategory: topCategories[0] ?? null };
+}
+
 async function listBackups(): Promise<BackupFile[]> {
   const userId = await requireCurrentDataUserId();
   const prefix = `${BACKUP_PREFIX}${userId}:`;
@@ -572,6 +616,8 @@ async function handleGet<T>(path: string): Promise<T> {
     if (route === "/stats") return stats(db);
     if (route === "/calendar") return calendar(db, query.get("month") ?? todayInput());
     if (route === "/notifications") return notifications(db);
+    if (route === "/reports/insights") return reportInsights(db);
+    if (route === "/audit") return [];
     if (route === "/search") return search(db, query.get("q") ?? "");
     throw new ApiClientError(404, `Ruta movil no soportada: ${route}`);
   }) as Promise<T>;

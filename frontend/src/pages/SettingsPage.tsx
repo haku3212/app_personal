@@ -180,7 +180,14 @@ export function SettingsPage() {
                 variant="outline"
                 onClick={() => api.download("/backups/export", "personal-control.sqlite")}
               >
-                <Download className="h-3.5 w-3.5" /> Exportar
+                <Download className="h-3.5 w-3.5" /> Base
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => api.download("/backups/export-json", "personal-control.json")}
+              >
+                <Download className="h-3.5 w-3.5" /> JSON
               </Button>
               <Button size="sm" variant="outline" onClick={() => fileInput.current?.click()}>
                 <Upload className="h-3.5 w-3.5" /> Importar

@@ -1,9 +1,3 @@
-/**
- * Módulo Notificaciones — avisos calculados en el momento:
- *  - Préstamos vencidos o por vencer (7 días).
- *  - Metas de ahorro cercanas al objetivo (≥ 90 %).
- *  - Hoy sin gastos registrados / sin horas registradas.
- */
 import { Router } from "express";
 import dayjs from "dayjs";
 import { prisma } from "../../lib/prisma";
@@ -40,40 +34,48 @@ notificationsRouter.get(
     ]);
 
     for (const loan of dueLoans) {
-      const remaining = round2(
-        loan.amount - loan.payments.reduce((s, p) => s + p.amount, 0),
-      );
+      const principalPaid = loan.payments.reduce((sum, payment) => sum + (payment.principalAmount || payment.amount), 0);
+      const interestPaid = loan.payments.reduce((sum, payment) => sum + (payment.interestAmount ?? 0), 0);
+      const interestExpected = round2(loan.amount * ((loan.interestRate ?? 0) / 100));
+      const remaining = round2(Math.max(0, loan.amount - principalPaid) + Math.max(0, interestExpected - interestPaid));
       const overdue = dayjs(loan.dueDate).isBefore(dayjs(), "day");
       const who = loan.type === "LENT" ? `${loan.person} te debe` : `Debes a ${loan.person}`;
       notifications.push({
         id: `loan-${loan.id}`,
         level: overdue ? "danger" : "warning",
-        title: overdue ? "Préstamo vencido" : "Préstamo por vencer",
-        detail: `${who} ${remaining} — vence ${dayjs(loan.dueDate).format("DD/MM/YYYY")}`,
+        title: overdue ? "Prestamo vencido" : "Prestamo por vencer",
+        detail: `${who} ${remaining} - vence ${dayjs(loan.dueDate).format("DD/MM/YYYY")}`,
       });
     }
 
     for (const goal of goals) {
-      const current = goal.contributions.reduce((s, c) => s + c.amount, 0);
+      const current = goal.contributions.reduce((sum, contribution) => sum + contribution.amount, 0);
       const pct = goal.targetAmount > 0 ? (current / goal.targetAmount) * 100 : 0;
       if (pct >= 90) {
         notifications.push({
           id: `goal-${goal.id}`,
           level: "info",
-          title: "Meta casi lograda 🎉",
-          detail: `"${goal.name}" va en ${round2(pct)} % — faltan ${round2(goal.targetAmount - current)}`,
+          title: "Meta casi lograda",
+          detail: `"${goal.name}" va en ${round2(pct)} % - faltan ${round2(goal.targetAmount - current)}`,
+        });
+      }
+      if (goal.targetDate && dayjs(goal.targetDate).diff(dayjs(), "day") <= 7 && pct < 100) {
+        notifications.push({
+          id: `goal-date-${goal.id}`,
+          level: dayjs(goal.targetDate).isBefore(dayjs(), "day") ? "danger" : "warning",
+          title: "Meta por vencer",
+          detail: `"${goal.name}" vence ${dayjs(goal.targetDate).format("DD/MM/YYYY")} y va en ${round2(pct)} %`,
         });
       }
     }
 
-    // Recordatorios de registro diario (solo después del mediodía para no molestar).
     if (dayjs().hour() >= 12) {
       if (todayExpenses === 0) {
         notifications.push({
           id: "no-expenses-today",
           level: "info",
           title: "Sin gastos registrados hoy",
-          detail: "¿No gastaste nada hoy o falta registrarlo?",
+          detail: "Si gastaste algo, registralo para mantener el control.",
         });
       }
       if (todayWork === 0) {

@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 import { dayRange, monthRange, rangeFilter, weekRange, yearRange } from "../../utils/dates";
 
@@ -81,6 +82,7 @@ expensesRouter.post(
       data: { ...data, ...ownerData(req), amount: round2(data.amount) },
       include,
     });
+    await audit(req, "CREATE", "expense", created.id, `Gasto creado: ${created.description ?? "sin descripcion"} (${created.amount})`);
     res.status(201).json(created);
   }),
 );
@@ -98,6 +100,7 @@ expensesRouter.put(
       data: { ...data, ...(data.amount != null ? { amount: round2(data.amount) } : {}) },
       include,
     });
+    await audit(req, "UPDATE", "expense", updated.id, `Gasto editado: ${updated.description ?? "sin descripcion"} (${updated.amount})`);
     res.json(updated);
   }),
 );
@@ -107,7 +110,9 @@ expensesRouter.delete(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     await ensureOwned(req, "expense", id);
+    const current = await prisma().expense.findUnique({ where: { id } });
     await prisma().expense.delete({ where: { id } });
+    await audit(req, "DELETE", "expense", id, `Gasto eliminado: ${current?.description ?? id}`);
     res.json({ ok: true });
   }),
 );

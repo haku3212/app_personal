@@ -8,8 +8,9 @@ import { useApiQuery } from "@/hooks/useCrud";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { listBudgets, type Budget } from "@/lib/budgets";
+import { listRecurringExpenses, type RecurringExpense } from "@/lib/recurring";
 import { inputDate } from "@/lib/format";
-import type { AppNotification, Expense } from "@/types";
+import type { AppNotification, Category, Expense } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface TopbarProps {
@@ -38,30 +39,72 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
     ["notifications", "budget-expenses", monthStart, monthEnd],
     `/expenses?from=${monthStart}&to=${monthEnd}`,
   );
+  const { data: categories = [] } = useApiQuery<Category[]>(["notifications", "categories"], "/categories?kind=EXPENSE");
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [recurring, setRecurring] = useState<RecurringExpense[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     void listBudgets().then(setBudgets);
+    void listRecurringExpenses().then(setRecurring);
   }, [session?.activeOwnerUserId]);
 
   const budgetNotifications = useMemo<AppNotification[]>(() => {
     const items: AppNotification[] = [];
+    const today = dayjs();
     for (const budget of budgets) {
-      if (budget.period !== "MONTHLY") continue;
+      const from =
+        budget.period === "WEEKLY"
+          ? today.startOf("week")
+          : budget.period === "BIWEEKLY"
+            ? today.date() <= 15
+              ? today.startOf("month")
+              : today.date(16).startOf("day")
+            : today.startOf("month");
+      const to =
+        budget.period === "WEEKLY"
+          ? today.endOf("week")
+          : budget.period === "BIWEEKLY"
+            ? today.date() <= 15
+              ? today.date(15).endOf("day")
+              : today.endOf("month")
+            : today.endOf("month");
       const spent = (monthExpenses?.items ?? [])
         .filter((expense) => expense.categoryId === budget.categoryId)
+        .filter((expense) => {
+          const date = dayjs(expense.date);
+          return !date.isBefore(from, "day") && !date.isAfter(to, "day");
+        })
         .reduce((sum, expense) => sum + expense.amount, 0);
       const percent = budget.limit > 0 ? (spent / budget.limit) * 100 : 0;
+      const categoryName = categories.find((category) => category.id === budget.categoryId)?.name ?? "categoria";
+      const period = budget.period === "WEEKLY" ? "semanal" : budget.period === "BIWEEKLY" ? "quincenal" : "mensual";
       if (percent >= 100) {
-        items.push({ id: `budget-over-${budget.id}`, level: "danger", title: "Presupuesto excedido", detail: `Usaste ${Math.round(percent)}% de un presupuesto mensual.` });
+        items.push({ id: `budget-over-${budget.id}`, level: "danger", title: "Presupuesto excedido", detail: `${categoryName}: ${Math.round(percent)}% del presupuesto ${period}.` });
       } else if (percent >= 80) {
-        items.push({ id: `budget-warn-${budget.id}`, level: "warning", title: "Presupuesto cerca del limite", detail: `Ya vas por ${Math.round(percent)}% del presupuesto mensual.` });
+        items.push({ id: `budget-warn-${budget.id}`, level: "warning", title: "Presupuesto cerca del limite", detail: `${categoryName}: ya vas por ${Math.round(percent)}% del presupuesto ${period}.` });
       }
     }
     return items;
-  }, [budgets, monthExpenses?.items]);
-  const allNotifications = [...budgetNotifications, ...notifications];
+  }, [budgets, categories, monthExpenses?.items]);
+  const recurringNotifications = useMemo<AppNotification[]>(() => {
+    const today = dayjs();
+    return recurring
+      .filter((item) => item.active)
+      .filter((item) => {
+        if (item.frequency === "WEEKLY") return true;
+        if (item.frequency === "BIWEEKLY") return Math.abs((today.date() <= 15 ? 15 : today.daysInMonth()) - today.date()) <= 3;
+        return Math.abs(Math.min(item.day, today.daysInMonth()) - today.date()) <= 3;
+      })
+      .slice(0, 5)
+      .map((item) => ({
+        id: `recurring-${item.id}`,
+        level: "warning" as const,
+        title: "Pago recurrente proximo",
+        detail: `${item.name}: ${item.amount}`,
+      }));
+  }, [recurring]);
+  const allNotifications = [...budgetNotifications, ...recurringNotifications, ...notifications];
 
   const isDark = document.documentElement.classList.contains("dark");
   const toggleTheme = () => updateSettings.mutate({ theme: isDark ? "light" : "dark" });

@@ -5,6 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler, parseBody, parseId, round2 } from "../../lib/http";
+import { audit } from "../../lib/audit";
 import { ensureOwned, ownerData, ownerWhere } from "../../lib/owner";
 
 const goalSchema = z.object({
@@ -55,6 +56,7 @@ goalsRouter.post(
       data: { ...data, ...ownerData(req), targetAmount: round2(data.targetAmount) },
       include: { contributions: true },
     });
+    await audit(req, "CREATE", "goal", created.id, `Meta creada: ${created.name}`);
     res.status(201).json(withProgress(created));
   }),
 );
@@ -70,6 +72,7 @@ goalsRouter.put(
       data: patch,
       include: { contributions: { orderBy: { date: "desc" } } },
     });
+    await audit(req, "UPDATE", "goal", updated.id, `Meta editada: ${updated.name}`);
     res.json(withProgress(updated));
   }),
 );
@@ -84,6 +87,7 @@ goalsRouter.post(
     await prisma().goalContribution.create({
       data: { ...data, amount: round2(data.amount), goalId: id },
     });
+    await audit(req, "CREATE", "goalContribution", id, `Aporte a meta registrado (${round2(data.amount)})`);
     const goal = await prisma().savingGoal.findUniqueOrThrow({
       where: { id },
       include: { contributions: { orderBy: { date: "desc" } } },
@@ -103,7 +107,9 @@ goalsRouter.delete(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     await ensureOwned(req, "savingGoal", id);
+    const current = await prisma().savingGoal.findUnique({ where: { id } });
     await prisma().savingGoal.delete({ where: { id } });
+    await audit(req, "DELETE", "goal", id, `Meta eliminada: ${current?.name ?? id}`);
     res.json({ ok: true });
   }),
 );

@@ -14,6 +14,15 @@ import { getSettings } from "../settings/settings.router";
 
 type ReportKind = "incomes" | "expenses" | "worklogs";
 
+interface PeriodInsight {
+  label: string;
+  from: string;
+  to: string;
+  income: number;
+  expense: number;
+  profit: number;
+}
+
 interface ReportData {
   title: string;
   columns: { header: string; key: string; width: number }[];
@@ -122,6 +131,69 @@ function parseKind(raw: string | undefined): ReportKind {
 }
 
 export const reportsRouter = Router();
+
+async function periodTotals(owned: { ownerId?: number }, label: string, from: dayjs.Dayjs, to: dayjs.Dayjs): Promise<PeriodInsight> {
+  const date = { gte: from.startOf("day").toDate(), lte: to.endOf("day").toDate() };
+  const [income, expense] = await Promise.all([
+    prisma().income.aggregate({ where: { ...owned, date }, _sum: { amount: true } }),
+    prisma().expense.aggregate({ where: { ...owned, date }, _sum: { amount: true } }),
+  ]);
+  const incomeTotal = round2(income._sum.amount ?? 0);
+  const expenseTotal = round2(expense._sum.amount ?? 0);
+  return {
+    label,
+    from: from.format("YYYY-MM-DD"),
+    to: to.format("YYYY-MM-DD"),
+    income: incomeTotal,
+    expense: expenseTotal,
+    profit: round2(incomeTotal - expenseTotal),
+  };
+}
+
+reportsRouter.get(
+  "/insights",
+  asyncHandler(async (req, res) => {
+    const owned = ownerWhere(req);
+    const now = dayjs();
+    const biweekStart = now.date() <= 15 ? now.startOf("month") : now.date(16).startOf("day");
+    const biweekEnd = now.date() <= 15 ? now.date(15).endOf("day") : now.endOf("month");
+    const monthStart = now.startOf("month");
+    const monthEnd = now.endOf("month");
+
+    const [week, biweek, month, expenses] = await Promise.all([
+      periodTotals(owned, "Esta semana", now.startOf("week"), now.endOf("week")),
+      periodTotals(owned, "Esta quincena", biweekStart, biweekEnd),
+      periodTotals(owned, "Este mes", monthStart, monthEnd),
+      prisma().expense.findMany({
+        where: { ...owned, date: { gte: monthStart.toDate(), lte: monthEnd.toDate() } },
+        include: { category: true },
+      }),
+    ]);
+
+    const byCategory = new Map<string, { name: string; color: string; amount: number; count: number }>();
+    for (const expense of expenses) {
+      const name = expense.category?.name ?? "Sin categoria";
+      const current = byCategory.get(name) ?? { name, color: expense.category?.color ?? "#64748b", amount: 0, count: 0 };
+      current.amount = round2(current.amount + expense.amount);
+      current.count += 1;
+      byCategory.set(name, current);
+    }
+
+    const categories = [...byCategory.values()]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 8)
+      .map((item) => ({
+        ...item,
+        percent: month.expense > 0 ? round2((item.amount / month.expense) * 100) : 0,
+      }));
+
+    res.json({
+      periods: [week, biweek, month],
+      topCategories: categories,
+      dangerCategory: categories[0] ?? null,
+    });
+  }),
+);
 
 function excelCell(value: string | number, bold = false): Cell {
   return {

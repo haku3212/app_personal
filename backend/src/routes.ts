@@ -4,6 +4,7 @@
  */
 import { Router } from "express";
 import { accountsRouter } from "./modules/accounts/accounts.router";
+import { auditRouter } from "./modules/audit/audit.router";
 import { authRouter } from "./modules/auth/auth.router";
 import { backupsRouter } from "./modules/backups/backups.router";
 import { calendarRouter } from "./modules/calendar/calendar.router";
@@ -29,6 +30,7 @@ export function apiRouter(): Router {
   router.use("/users", usersRouter);
   router.use(requireUserOrLegacy);
   router.use("/accounts", accountsRouter);
+  router.use("/audit", auditRouter);
   router.use("/backups", backupsRouter);
   router.use("/calendar", calendarRouter);
   router.use("/categories", categoriesRouter);
