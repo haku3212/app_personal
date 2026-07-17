@@ -83,9 +83,51 @@ export function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" description="Resumen de tu vida financiera" />
+      <div className="hidden md:block">
+        <PageHeader title="Dashboard" description="Resumen de tu vida financiera" />
+      </div>
 
-      <div className="mb-4 grid gap-3 lg:grid-cols-[1.2fr_1fr]">
+      <section className="mb-4 md:hidden">
+        <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <div className="bg-primary p-4 text-primary-foreground">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium opacity-80">Dinero disponible</p>
+                <p className="mt-1 truncate text-3xl font-bold tabular-nums">{money(cards.available, cur)}</p>
+              </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                <Wallet className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/10 p-3">
+                <p className="text-[11px] opacity-75">Balance mes</p>
+                <p className="mt-1 truncate text-sm font-semibold tabular-nums">{money(cards.balanceMonth, cur)}</p>
+              </div>
+              <div className="rounded-xl bg-white/10 p-3">
+                <p className="text-[11px] opacity-75">Estado</p>
+                <p className="mt-1 truncate text-sm font-semibold">{health.label}</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 p-3">
+            <Link
+              to="/rapido"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-foreground text-sm font-semibold text-background"
+            >
+              Registrar <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              to="/gastos"
+              className="inline-flex h-11 items-center justify-center rounded-xl border bg-background text-sm font-semibold"
+            >
+              Ver gastos
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <div className="mb-4 hidden gap-3 md:grid lg:grid-cols-[1.2fr_1fr]">
         <StorageStatus />
         <Card className="p-3">
           <div className="grid gap-2 sm:grid-cols-3">
@@ -108,7 +150,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 hidden flex-wrap gap-2 md:flex">
         <Link
           to="/rapido"
           className="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
@@ -129,7 +171,7 @@ export function Dashboard() {
         </Link>
       </div>
 
-      <Card className="mb-4 overflow-hidden">
+      <Card className="mb-4 overflow-hidden rounded-2xl md:rounded-xl">
         <div className="grid gap-0 md:grid-cols-[1.1fr_2fr]">
           <div className="border-b bg-muted/35 p-4 md:border-b-0 md:border-r">
             <div className="flex items-center gap-2">
@@ -170,7 +212,7 @@ export function Dashboard() {
       </Card>
 
       {/* Tarjetas principales */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-2 min-[390px]:grid-cols-2 md:grid-cols-3 md:gap-3 xl:grid-cols-5">
         <StatCard title="Dinero disponible" value={money(cards.available, cur)} icon={Wallet} />
         <StatCard
           title="Ingresos del mes"

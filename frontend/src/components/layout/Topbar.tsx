@@ -67,18 +67,19 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
   const toggleTheme = () => updateSettings.mutate({ theme: isDark ? "light" : "dark" });
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">
-      <Button variant="ghost" size="icon" className="md:hidden" onClick={onToggleSidebar}>
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur md:h-14 md:px-4">
+      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl border bg-card md:hidden" onClick={onToggleSidebar}>
         <Menu className="h-5 w-5" />
       </Button>
 
       {/* Buscador global (abre el diálogo Ctrl+K) */}
       <button
         onClick={onOpenSearch}
-        className="flex h-9 flex-1 max-w-md items-center gap-2 rounded-lg border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-accent"
+        className="flex h-10 flex-1 items-center gap-2 rounded-xl border bg-card px-3 text-sm text-muted-foreground shadow-sm transition-colors hover:bg-accent md:h-9 md:max-w-md md:rounded-lg md:bg-muted/40 md:shadow-none"
       >
         <Search className="h-4 w-4" />
-        <span className="flex-1 text-left">Buscar movimientos…</span>
+        <span className="flex-1 text-left md:hidden">Buscar</span>
+        <span className="hidden flex-1 text-left md:inline">Buscar movimientos...</span>
         <kbd className="hidden rounded border bg-background px-1.5 py-0.5 text-[10px] sm:inline">
           Ctrl K
         </kbd>
@@ -104,7 +105,7 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
           {showNotifications && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-              <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border bg-popover p-2 shadow-xl animate-scale-in">
+              <div className="fixed left-3 right-3 top-16 z-50 rounded-xl border bg-popover p-2 shadow-xl animate-scale-in sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80">
                 <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                   Notificaciones
                 </p>
@@ -130,7 +131,7 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
 
         {session && (
           session.role === "ADMIN" ? (
-            <div className="flex min-w-28 items-center gap-1 sm:min-w-40">
+            <div className="hidden min-w-28 items-center gap-1 sm:flex sm:min-w-40">
               <Shield className="hidden h-4 w-4 text-primary sm:block" />
               <Select
                 value={session.activeOwnerUserId}
@@ -152,10 +153,10 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
           )
         )}
         {/* Cambio de tema */}
-        <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Cambiar tema">
+        <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={toggleTheme} aria-label="Cambiar tema">
           {settings?.theme === "dark" ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => void logout()} aria-label="Cerrar sesion">
+        <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={() => void logout()} aria-label="Cerrar sesion">
           <LogOut className="h-4.5 w-4.5" />
         </Button>
       </div>

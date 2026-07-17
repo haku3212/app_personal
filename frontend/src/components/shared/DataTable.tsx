@@ -25,8 +25,44 @@ export function DataTable<T extends { id: number }>({
   onDelete,
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-x-auto rounded-xl border">
-      <table className="w-full min-w-[560px] text-sm">
+    <div>
+      <div className="space-y-2 md:hidden">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-xl border bg-card p-3 shadow-sm">
+            <div className="space-y-2">
+              {columns.map((c, index) => (
+                <div key={c.header} className={index === 0 ? "" : "flex items-start justify-between gap-3"}>
+                  {index === 0 ? (
+                    <div className="text-sm font-semibold">{c.cell(row)}</div>
+                  ) : (
+                    <>
+                      <span className="shrink-0 text-xs text-muted-foreground">{c.header}</span>
+                      <span className="min-w-0 text-right text-sm">{c.cell(row)}</span>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            {(onEdit || onDelete) && (
+              <div className="mt-3 flex justify-end gap-2 border-t pt-2">
+                {onEdit && (
+                  <Button variant="outline" size="sm" onClick={() => onEdit(row)}>
+                    <Pencil className="h-3.5 w-3.5" /> Editar
+                  </Button>
+                )}
+                {onDelete && (
+                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={() => onDelete(row)}>
+                    <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border md:block">
+        <table className="w-full min-w-[560px] text-sm">
         <thead>
           <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
             {columns.map((c) => (
@@ -70,7 +106,8 @@ export function DataTable<T extends { id: number }>({
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

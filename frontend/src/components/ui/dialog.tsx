@@ -33,14 +33,14 @@ export function Dialog({ open, onClose, title, description, children, width }: D
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-2 backdrop-blur-sm sm:items-center sm:p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         className={cn(
-          "max-h-[90vh] w-full overflow-y-auto rounded-xl border bg-popover p-6 shadow-2xl animate-scale-in",
+          "max-h-[88vh] w-full overflow-y-auto rounded-2xl rounded-b-none border bg-popover p-4 shadow-2xl animate-scale-in sm:max-h-[90vh] sm:rounded-xl sm:p-6",
           width ?? "max-w-lg",
         )}
       >

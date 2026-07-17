@@ -21,14 +21,14 @@ const tones: Record<NonNullable<StatCardProps["tone"]>, string> = {
 /** Tarjeta de indicador para el dashboard y las páginas de resumen. */
 export function StatCard({ title, value, icon: Icon, hint, tone = "default" }: StatCardProps) {
   return (
-    <Card className="p-4 transition-transform duration-150 hover:-translate-y-0.5">
-      <div className="flex items-center gap-3">
-        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", tones[tone])}>
-          <Icon className="h-5 w-5" />
+    <Card className="p-3 transition-transform duration-150 hover:-translate-y-0.5 sm:p-4">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10", tones[tone])}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
         </div>
         <div className="min-w-0">
           <p className="truncate text-xs text-muted-foreground">{title}</p>
-          <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
+          <p className="truncate text-base font-semibold tabular-nums sm:text-lg">{value}</p>
           {hint && <p className="truncate text-[11px] text-muted-foreground">{hint}</p>}
         </div>
       </div>
