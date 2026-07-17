@@ -20,12 +20,12 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-40 w-60 shrink-0 border-r bg-card transition-transform duration-200 md:static md:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 w-60 shrink-0 border-r bg-card/95 backdrop-blur transition-transform duration-200 md:static md:translate-x-0",
         open ? "translate-x-0" : "-translate-x-full",
       )}
     >
       <div className="flex h-14 items-center gap-2.5 border-b px-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shadow-primary/30">
           <Wallet2 className="h-4.5 w-4.5" />
         </div>
         <div className="leading-tight">
@@ -34,7 +34,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="h-[calc(100vh-3.5rem)] space-y-5 overflow-y-auto p-3">
+      <nav className="h-[calc(100vh-3.5rem)] space-y-4 overflow-y-auto p-3">
         {sections.map((section) => (
           <div key={section.title}>
             <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -49,9 +49,9 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
                   onClick={onNavigate}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-all",
                       isActive
-                        ? "bg-primary/10 font-medium text-primary"
+                        ? "bg-primary/10 font-medium text-primary shadow-sm"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground",
                     )
                   }

@@ -6,8 +6,9 @@
 
 import { ApiClientError } from "@/lib/apiError";
 import { isMobileApiEnabled, mobileApi } from "@/lib/mobileApi";
+import { REMOTE_API_URL } from "@/lib/runtime";
 
-const REMOTE_API = import.meta.env.VITE_API_URL?.replace(/\/$/, "") as string | undefined;
+const REMOTE_API = REMOTE_API_URL;
 const BASE = REMOTE_API ? `${REMOTE_API}/api` : "/api";
 const SESSION_KEY = "personal-control-session-v1";
 

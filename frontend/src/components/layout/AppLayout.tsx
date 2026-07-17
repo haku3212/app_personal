@@ -25,7 +25,7 @@ export function AppLayout() {
   }, []);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-muted/20">
       <Sidebar open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
       {/* Fondo oscuro al abrir el sidebar en móvil */}
       {sidebarOpen && (
@@ -40,7 +40,7 @@ export function AppLayout() {
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
           onOpenSearch={() => setSearchOpen(true)}
         />
-        <main className="flex-1 p-4 md:p-6">
+        <main className="flex-1 p-3 sm:p-4 md:p-6">
           <div className="mx-auto max-w-6xl animate-fade-in">
             <Outlet />
           </div>

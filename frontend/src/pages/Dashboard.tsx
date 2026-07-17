@@ -1,4 +1,5 @@
 import {
+  ArrowRight,
   Banknote,
   Clock,
   HandCoins,
@@ -10,6 +11,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
   Area,
   AreaChart,
@@ -28,6 +30,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/shared/StatCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { StorageStatus } from "@/components/shared/StorageStatus";
 import { useApiQuery } from "@/hooks/useCrud";
 import { useSettings } from "@/hooks/useSettings";
 import { hours, money } from "@/lib/format";
@@ -50,10 +53,63 @@ export function Dashboard() {
   }
 
   const { cards, series, expensesByCategory } = data;
+  const spentRatio = cards.incomeMonth > 0 ? Math.round((cards.expenseMonth / cards.incomeMonth) * 100) : 0;
+  const topCategory = expensesByCategory[0];
+  const weeklyAvailable = cards.balanceMonth / Math.max(1, 4 - Math.floor(new Date().getDate() / 7));
+  const health =
+    cards.balanceMonth >= 0 && spentRatio <= 80
+      ? { label: "Buen ritmo", tone: "text-emerald-500", detail: "Tus gastos van por debajo de tus ingresos." }
+      : cards.balanceMonth >= 0
+        ? { label: "Vigila gastos", tone: "text-amber-500", detail: "Hay balance positivo, pero el consumo del mes esta alto." }
+        : { label: "Ajustar hoy", tone: "text-red-500", detail: "Este mes va en negativo; revisa gastos y presupuestos." };
 
   return (
     <div>
       <PageHeader title="Dashboard" description="Resumen de tu vida financiera" />
+
+      <div className="mb-4 grid gap-3 lg:grid-cols-[1.2fr_1fr]">
+        <StorageStatus />
+        <Card className="p-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground">Estado del mes</p>
+              <p className={`text-sm font-semibold ${health.tone}`}>{health.label}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{health.detail}</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground">Gasto/ingreso</p>
+              <p className="text-sm font-semibold tabular-nums">{spentRatio}%</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Meta sana: 80% o menos.</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground">Te queda por semana</p>
+              <p className="text-sm font-semibold tabular-nums">{money(weeklyAvailable, cur)}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Estimado con balance actual.</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Link
+          to="/rapido"
+          className="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+        >
+          Registrar rapido <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+        <Link
+          to="/presupuestos"
+          className="inline-flex h-8 items-center justify-center rounded-md border border-input px-3 text-xs font-medium transition-colors hover:bg-accent"
+        >
+          Revisar presupuestos
+        </Link>
+        <Link
+          to="/recurrentes"
+          className="inline-flex h-8 items-center justify-center rounded-md border border-input px-3 text-xs font-medium transition-colors hover:bg-accent"
+        >
+          Proximos pagos
+        </Link>
+      </div>
 
       {/* Tarjetas principales */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
@@ -193,6 +249,34 @@ export function Dashboard() {
                 <Bar dataKey="savings" name="Ahorro" fill="#22c55e" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Categoria mas fuerte del mes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topCategory ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-semibold">{topCategory.name}</p>
+                    <p className="text-xs text-muted-foreground">Mayor concentracion de gasto</p>
+                  </div>
+                  <span className="h-10 w-10 rounded-lg" style={{ backgroundColor: topCategory.color }} />
+                </div>
+                <p className="text-2xl font-semibold tabular-nums">{money(topCategory.value, cur)}</p>
+                <Link
+                  to="/gastos"
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-input px-3 text-xs font-medium transition-colors hover:bg-accent"
+                >
+                  Ver gastos
+                </Link>
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">Sin gastos para analizar este mes</p>
+            )}
           </CardContent>
         </Card>
       </div>

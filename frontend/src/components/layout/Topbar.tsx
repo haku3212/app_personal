@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { StorageStatus } from "@/components/shared/StorageStatus";
 import { useApiQuery } from "@/hooks/useCrud";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/hooks/useAuth";
@@ -84,6 +85,7 @@ export function Topbar({ onToggleSidebar, onOpenSearch }: TopbarProps) {
       </button>
 
       <div className="ml-auto flex items-center gap-1">
+        <StorageStatus compact />
         {/* Notificaciones */}
         <div className="relative">
           <Button
