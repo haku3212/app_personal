@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Wallet,
   WalletCards,
+  UploadCloud,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -42,6 +43,7 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { to: "/ingresos", label: "Ingresos", icon: TrendingUp },
       { to: "/gastos", label: "Gastos", icon: TrendingDown },
+      { to: "/importar-banco", label: "Importar banco", icon: UploadCloud },
       { to: "/efectivo", label: "Efectivo", icon: Wallet },
       { to: "/caja", label: "Caja diaria", icon: Wallet },
       { to: "/presupuestos", label: "Presupuestos", icon: WalletCards },

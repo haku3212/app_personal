@@ -25,6 +25,7 @@ const Stats = lazy(() => import("@/pages/Stats").then((m) => ({ default: m.Stats
 const Reports = lazy(() => import("@/pages/Reports").then((m) => ({ default: m.Reports })));
 const GlobalEdit = lazy(() => import("@/pages/GlobalEdit").then((m) => ({ default: m.GlobalEdit })));
 const AuditPage = lazy(() => import("@/pages/AuditPage").then((m) => ({ default: m.AuditPage })));
+const BankImport = lazy(() => import("@/pages/BankImport").then((m) => ({ default: m.BankImport })));
 const SettingsPage = lazy(() =>
   import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
@@ -63,6 +64,7 @@ export function App() {
           <Route path="/notas" element={<Notes />} />
           <Route path="/estadisticas" element={<Stats />} />
           <Route path="/reportes" element={<Reports />} />
+          <Route path="/importar-banco" element={<BankImport />} />
           <Route path="/editar-todo" element={<GlobalEdit />} />
           <Route path="/auditoria" element={<AuditPage />} />
           <Route path="/admin" element={<AdminUsers />} />
