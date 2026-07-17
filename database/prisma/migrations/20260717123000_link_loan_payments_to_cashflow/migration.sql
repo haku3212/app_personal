@@ -1,0 +1,2 @@
+ALTER TABLE "LoanPayment" ADD COLUMN "incomeId" INTEGER;
+ALTER TABLE "LoanPayment" ADD COLUMN "expenseId" INTEGER;

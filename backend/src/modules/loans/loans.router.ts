@@ -92,6 +92,54 @@ async function validatePaymentTotals(
   }
 }
 
+async function deleteLinkedCashflow(payment: { incomeId: number | null; expenseId: number | null }) {
+  if (payment.incomeId) {
+    await prisma().income.deleteMany({ where: { id: payment.incomeId } });
+  }
+  if (payment.expenseId) {
+    await prisma().expense.deleteMany({ where: { id: payment.expenseId } });
+  }
+}
+
+async function linkedCashflowData(
+  loan: { type: string; person: string; ownerId: number | null },
+  date: Date,
+  principalAmount: number,
+  interestAmount: number,
+  note: string | null | undefined,
+) {
+  if (loan.type === "LENT" && interestAmount > 0) {
+    const income = await prisma().income.create({
+      data: {
+        ownerId: loan.ownerId,
+        date,
+        amount: interestAmount,
+        source: `Interes de prestamo - ${loan.person}`,
+        description: `Interes cobrado a ${loan.person}`,
+        paymentMethod: "Prestamo",
+        notes: note ?? "Movimiento automatico desde prestamos",
+      },
+    });
+    return { incomeId: income.id, expenseId: null };
+  }
+
+  if (loan.type === "BORROWED" && principalAmount + interestAmount > 0) {
+    const expense = await prisma().expense.create({
+      data: {
+        ownerId: loan.ownerId,
+        date,
+        amount: round2(principalAmount + interestAmount),
+        description: `Pago de prestamo - ${loan.person}`,
+        paymentMethod: "Prestamo",
+        notes: `Capital: ${principalAmount}. Interes: ${interestAmount}.${note ? ` ${note}` : ""}`,
+      },
+    });
+    return { incomeId: null, expenseId: expense.id };
+  }
+
+  return { incomeId: null, expenseId: null };
+}
+
 export const loansRouter = Router();
 
 /** GET /api/loans?type&status&from&to&q */
@@ -188,6 +236,7 @@ loansRouter.post(
     const principalAmount = round2(data.amount != null ? data.amount : data.principalAmount);
     const interestAmount = round2(data.interestAmount);
     await validatePaymentTotals(loan, principalAmount, interestAmount);
+    const cashflow = await linkedCashflowData(loan, data.date, principalAmount, interestAmount, data.note);
     await prisma().loanPayment.create({
       data: {
         date: data.date,
@@ -195,6 +244,7 @@ loansRouter.post(
         amount: round2(principalAmount + interestAmount),
         principalAmount,
         interestAmount,
+        ...cashflow,
         loanId: id,
       },
     });
@@ -220,6 +270,8 @@ loansRouter.put(
     const principalAmount = round2(data.amount != null ? data.amount : data.principalAmount);
     const interestAmount = round2(data.interestAmount);
     await validatePaymentTotals(loan, principalAmount, interestAmount, paymentId);
+    await deleteLinkedCashflow(payment);
+    const cashflow = await linkedCashflowData(loan, data.date, principalAmount, interestAmount, data.note);
     await prisma().loanPayment.update({
       where: { id: paymentId },
       data: {
@@ -228,6 +280,7 @@ loansRouter.put(
         amount: round2(principalAmount + interestAmount),
         principalAmount,
         interestAmount,
+        ...cashflow,
       },
     });
     await audit(req, "UPDATE", "loanPayment", paymentId, `Pago de prestamo editado para ${loan.person}`);
@@ -244,6 +297,7 @@ loansRouter.delete(
     await ensureOwned(req, "loan", id);
     const payment = await prisma().loanPayment.findFirst({ where: { id: paymentId, loanId: id } });
     if (!payment) throw new ApiError(404, "Pago no encontrado");
+    await deleteLinkedCashflow(payment);
     await prisma().loanPayment.delete({ where: { id: paymentId } });
     await audit(req, "DELETE", "loanPayment", paymentId, `Pago de prestamo eliminado`);
     const updated = await updateLoanStatus(id);
@@ -256,7 +310,10 @@ loansRouter.delete(
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     await ensureOwned(req, "loan", id);
-    const current = await prisma().loan.findUnique({ where: { id } });
+    const current = await prisma().loan.findUnique({ where: { id }, include: { payments: true } });
+    for (const payment of current?.payments ?? []) {
+      await deleteLinkedCashflow(payment);
+    }
     await prisma().loan.delete({ where: { id } });
     await audit(req, "DELETE", "loan", id, `Prestamo eliminado: ${current?.person ?? id}`);
     res.json({ ok: true });

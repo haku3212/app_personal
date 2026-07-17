@@ -194,6 +194,8 @@ model LoanPayment {
   amount Float
   principalAmount Float?
   interestAmount  Float?
+  incomeId Int?
+  expenseId Int?
   note   String?
 }
 

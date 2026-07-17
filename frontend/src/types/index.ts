@@ -79,6 +79,8 @@ export interface LoanPayment {
   amount: number;
   principalAmount: number;
   interestAmount: number;
+  incomeId: number | null;
+  expenseId: number | null;
   note: string | null;
 }
 

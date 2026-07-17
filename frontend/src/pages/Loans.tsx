@@ -78,7 +78,7 @@ export function Loans() {
   const [error, setError] = useState("");
   const activeSelectedLoan = selectedLoan ? loans.find((loan) => loan.id === selectedLoan.id) ?? selectedLoan : null;
 
-  const invalidate = [["loans"], ...GLOBAL_KEYS];
+  const invalidate = [["loans"], ["incomes"], ["expenses"], ["reports"], ...GLOBAL_KEYS];
   const save = useApiMutation(
     (payload: object) => (editing ? api.put(`/loans/${editing.id}`, payload) : api.post("/loans", payload)),
     invalidate,
@@ -395,6 +395,13 @@ export function Loans() {
             <Label>Nota</Label>
             <Textarea value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} />
           </div>
+          {paying && (
+            <p className="rounded-lg bg-muted/60 p-2 text-xs text-muted-foreground">
+              {paying.type === "LENT"
+                ? "El interes cobrado se registrara automaticamente como ingreso."
+                : "El pago completo se registrara automaticamente como gasto."}
+            </p>
+          )}
         </div>
         {addPayment.isError && (
           <p className="mt-2 text-xs text-red-500">{(addPayment.error as Error).message}</p>

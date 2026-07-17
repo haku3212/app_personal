@@ -267,6 +267,51 @@ function validateLoanPayment(
   }
 }
 
+function deleteLinkedLoanCashflow(db: MobileDb, payment: Pick<LoanPayment, "incomeId" | "expenseId">) {
+  if (payment.incomeId) db.incomes = db.incomes.filter((item) => item.id !== payment.incomeId);
+  if (payment.expenseId) db.expenses = db.expenses.filter((item) => item.id !== payment.expenseId);
+}
+
+function createLinkedLoanCashflow(
+  db: MobileDb,
+  loan: MobileDb["loans"][number],
+  date: string,
+  principalAmount: number,
+  interestAmount: number,
+  note?: string | null,
+): Pick<LoanPayment, "incomeId" | "expenseId"> {
+  if (loan.type === "LENT" && interestAmount > 0) {
+    const income: Omit<Income, "category" | "account"> = {
+      id: nextId(db, "incomes"),
+      date,
+      amount: round2(interestAmount),
+      source: `Interes de prestamo - ${loan.person}`,
+      description: `Interes cobrado a ${loan.person}`,
+      paymentMethod: "Prestamo",
+      notes: note || "Movimiento automatico desde prestamos",
+      categoryId: null,
+      accountId: null,
+    };
+    db.incomes.push(income);
+    return { incomeId: income.id, expenseId: null };
+  }
+  if (loan.type === "BORROWED" && principalAmount + interestAmount > 0) {
+    const expense: Omit<Expense, "category" | "account"> = {
+      id: nextId(db, "expenses"),
+      date,
+      amount: round2(principalAmount + interestAmount),
+      description: `Pago de prestamo - ${loan.person}`,
+      paymentMethod: "Prestamo",
+      notes: `Capital: ${principalAmount}. Interes: ${interestAmount}.${note ? ` ${note}` : ""}`,
+      categoryId: null,
+      accountId: null,
+    };
+    db.expenses.push(expense);
+    return { incomeId: null, expenseId: expense.id };
+  }
+  return { incomeId: null, expenseId: null };
+}
+
 function enrichGoal(db: MobileDb, goal: MobileDb["goals"][number]): SavingGoal {
   const contributions = db.goalContributions
     .filter((c) => c.goalId === goal.id)
@@ -683,7 +728,10 @@ async function handlePost<T>(path: string, body?: unknown): Promise<T> {
       const loan = db.loans.find((item) => item.id === loanId);
       if (!loan) throw new ApiClientError(404, "Prestamo no encontrado");
       validateLoanPayment(db, loan, principalAmount, interestAmount);
-      const item: LoanPayment = { id: nextId(db, "loanPayments"), loanId, date: String(payload.date ?? todayInput()), amount: round2(principalAmount + interestAmount), principalAmount, interestAmount, note: (payload.note as string | null) ?? null };
+      const date = String(payload.date ?? todayInput());
+      const note = (payload.note as string | null) ?? null;
+      const cashflow = createLinkedLoanCashflow(db, loan, date, principalAmount, interestAmount, note);
+      const item: LoanPayment = { id: nextId(db, "loanPayments"), loanId, date, amount: round2(principalAmount + interestAmount), principalAmount, interestAmount, ...cashflow, note };
       db.loanPayments.push(item);
       return enrichLoan(db, loan);
     }
@@ -730,12 +778,17 @@ async function handlePut<T>(path: string, body: unknown): Promise<T> {
       const principalAmount = Number(payload.amount ?? payload.principalAmount ?? 0);
       const interestAmount = Number(payload.interestAmount ?? 0);
       validateLoanPayment(db, loan, principalAmount, interestAmount, paymentId);
+      deleteLinkedLoanCashflow(db, item);
+      const date = String(payload.date ?? item.date);
+      const note = (payload.note as string | null) ?? null;
+      const cashflow = createLinkedLoanCashflow(db, loan, date, principalAmount, interestAmount, note);
       Object.assign(item, {
-        date: String(payload.date ?? item.date),
+        date,
         amount: round2(principalAmount + interestAmount),
         principalAmount,
         interestAmount,
-        note: (payload.note as string | null) ?? null,
+        ...cashflow,
+        note,
       });
       return enrichLoan(db, loan);
     }
@@ -830,6 +883,8 @@ async function handleDelete<T>(path: string): Promise<T> {
       const paymentId = parseId(loanPaymentMatch[2]);
       const loan = db.loans.find((item) => item.id === loanId);
       if (!loan) throw new ApiClientError(404, "Prestamo no encontrado");
+      const payment = db.loanPayments.find((item) => item.id === paymentId && item.loanId === loanId);
+      if (payment) deleteLinkedLoanCashflow(db, payment);
       db.loanPayments = db.loanPayments.filter((item) => !(item.id === paymentId && item.loanId === loanId));
       return enrichLoan(db, loan);
     }
@@ -843,6 +898,7 @@ async function handleDelete<T>(path: string): Promise<T> {
     else if (entity === "expenses") db.expenses = db.expenses.filter((item) => item.id !== id);
     else if (entity === "worklogs") db.worklogs = db.worklogs.filter((item) => item.id !== id);
     else if (entity === "loans") {
+      db.loanPayments.filter((item) => item.loanId === id).forEach((payment) => deleteLinkedLoanCashflow(db, payment));
       db.loans = db.loans.filter((item) => item.id !== id);
       db.loanPayments = db.loanPayments.filter((item) => item.loanId !== id);
     } else if (entity === "goals") {
