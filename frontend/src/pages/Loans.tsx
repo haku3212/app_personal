@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { HandCoins, Plus, Users, Wallet } from "lucide-react";
+import { Eye, HandCoins, Pencil, Plus, Trash2, Users, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { DataTable, type Column } from "@/components/shared/DataTable";
@@ -17,7 +17,7 @@ import { GLOBAL_KEYS, useApiMutation, useApiQuery } from "@/hooks/useCrud";
 import { useSettings } from "@/hooks/useSettings";
 import { api } from "@/lib/api";
 import { inputDate, money, shortDate } from "@/lib/format";
-import type { Loan, LoanSummary } from "@/types";
+import type { Loan, LoanPayment, LoanSummary } from "@/types";
 
 const statusBadge: Record<Loan["status"], { label: string; variant: "success" | "warning" | "danger" }> = {
   PAID: { label: "Pagado", variant: "success" },
@@ -68,10 +68,15 @@ export function Loans() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [deleting, setDeleting] = useState<Loan | null>(null);
   const [paying, setPaying] = useState<Loan | null>(null);
+  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
+  const [editingPayment, setEditingPayment] = useState<LoanPayment | null>(null);
+  const [deletingPayment, setDeletingPayment] = useState<LoanPayment | null>(null);
   const [paymentPrincipal, setPaymentPrincipal] = useState("");
   const [paymentInterest, setPaymentInterest] = useState("");
+  const [paymentDate, setPaymentDate] = useState(inputDate());
   const [paymentNote, setPaymentNote] = useState("");
   const [error, setError] = useState("");
+  const activeSelectedLoan = selectedLoan ? loans.find((loan) => loan.id === selectedLoan.id) ?? selectedLoan : null;
 
   const invalidate = [["loans"], ...GLOBAL_KEYS];
   const save = useApiMutation(
@@ -85,15 +90,25 @@ export function Loans() {
     () => setDeleting(null),
   );
   const addPayment = useApiMutation(
-    ({ id, principalAmount, interestAmount, note }: { id: number; principalAmount: number; interestAmount: number; note?: string }) =>
-      api.post(`/loans/${id}/payments`, { date: inputDate(), principalAmount, interestAmount, note: note || null }),
+    ({ id, principalAmount, interestAmount, date, note }: { id: number; principalAmount: number; interestAmount: number; date: string; note?: string }) =>
+      editingPayment
+        ? api.put(`/loans/${id}/payments/${editingPayment.id}`, { date, principalAmount, interestAmount, note: note || null })
+        : api.post(`/loans/${id}/payments`, { date, principalAmount, interestAmount, note: note || null }),
     invalidate,
     () => {
       setPaying(null);
+      setEditingPayment(null);
       setPaymentPrincipal("");
       setPaymentInterest("");
+      setPaymentDate(inputDate());
       setPaymentNote("");
     },
+  );
+  const removePayment = useApiMutation(
+    ({ loanId, paymentId }: { loanId: number; paymentId: number }) =>
+      api.delete(`/loans/${loanId}/payments/${paymentId}`),
+    invalidate,
+    () => setDeletingPayment(null),
   );
 
   const openCreate = () => {
@@ -116,6 +131,15 @@ export function Loans() {
     });
     setError("");
     setFormOpen(true);
+  };
+
+  const openPayment = (loan: Loan, payment?: LoanPayment) => {
+    setPaying(loan);
+    setEditingPayment(payment ?? null);
+    setPaymentPrincipal(payment ? String(payment.principalAmount || payment.amount) : "");
+    setPaymentInterest(payment ? String(payment.interestAmount || 0) : "");
+    setPaymentDate(payment ? inputDate(payment.date) : inputDate());
+    setPaymentNote(payment?.note ?? "");
   };
 
   const submit = () => {
@@ -194,15 +218,20 @@ export function Loans() {
             size="sm"
             variant="outline"
             onClick={() => {
-              setPaying(r);
-              setPaymentPrincipal("");
-              setPaymentInterest("");
-              setPaymentNote("");
+              openPayment(r);
             }}
           >
             {r.type === "LENT" ? "Cobrar" : "Pagar"}
           </Button>
         ) : null,
+    },
+    {
+      header: "Historial",
+      cell: (r) => (
+        <Button size="sm" variant="ghost" onClick={() => setSelectedLoan(r)}>
+          <Eye className="h-3.5 w-3.5" /> Ver
+        </Button>
+      ),
     },
   ];
 
@@ -332,11 +361,15 @@ export function Loans() {
       <Dialog
         open={paying !== null}
         onClose={() => setPaying(null)}
-        title={`${paying?.type === "LENT" ? "Cobrar" : "Pagar"} a ${paying?.person ?? ""}`}
+        title={`${editingPayment ? "Editar" : paying?.type === "LENT" ? "Cobrar" : "Pagar"} a ${paying?.person ?? ""}`}
         description={paying ? `Capital pendiente: ${money(paying.remaining, cur)} | Interes pendiente: ${money(paying.interestRemaining, cur)}` : undefined}
         width="max-w-sm"
       >
         <div className="grid gap-3">
+          <div>
+            <Label>Fecha</Label>
+            <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+          </div>
           <div>
             <Label>Pago a capital ({cur})</Label>
             <Input
@@ -378,13 +411,87 @@ export function Loans() {
                 id: paying.id,
                 principalAmount: Number(paymentPrincipal || 0),
                 interestAmount: Number(paymentInterest || 0),
+                date: paymentDate,
                 note: paymentNote,
               })
             }
           >
-            Registrar {paying?.type === "LENT" ? "cobro" : "pago"}
+            {editingPayment ? "Guardar pago" : `Registrar ${paying?.type === "LENT" ? "cobro" : "pago"}`}
           </Button>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={activeSelectedLoan !== null}
+        onClose={() => setSelectedLoan(null)}
+        title={`Historial de ${activeSelectedLoan?.person ?? ""}`}
+        description={
+          activeSelectedLoan
+            ? `Pendiente total: ${money(activeSelectedLoan.totalRemaining, cur)} | Interes: ${activeSelectedLoan.interestRate}%`
+            : undefined
+        }
+      >
+        {activeSelectedLoan && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Capital</p>
+                <p className="font-semibold">{money(activeSelectedLoan.amount, cur)}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Pagado</p>
+                <p className="font-semibold">{money(activeSelectedLoan.principalPaid, cur)}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Interes pagado</p>
+                <p className="font-semibold">{money(activeSelectedLoan.interestPaid, cur)}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Interes pendiente</p>
+                <p className="font-semibold">{money(activeSelectedLoan.interestRemaining, cur)}</p>
+              </div>
+            </div>
+
+            {activeSelectedLoan.payments.length === 0 ? (
+              <p className="rounded-lg border p-4 text-center text-sm text-muted-foreground">Sin pagos registrados.</p>
+            ) : (
+              <div className="space-y-2">
+                {activeSelectedLoan.payments.map((payment) => (
+                  <div key={payment.id} className="rounded-lg border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">{shortDate(payment.date)}</p>
+                        <p className="text-xs text-muted-foreground">{payment.note || "Sin nota"}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openPayment(activeSelectedLoan, payment)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => setDeletingPayment(payment)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <p className="text-muted-foreground">Capital</p>
+                        <p className="font-medium">{money(payment.principalAmount || payment.amount, cur)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Interes</p>
+                        <p className="font-medium">{money(payment.interestAmount || 0, cur)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Total</p>
+                        <p className="font-medium">{money(payment.amount, cur)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </Dialog>
 
       <ConfirmDialog
@@ -393,6 +500,13 @@ export function Loans() {
         message={`¿Eliminar el préstamo de ${deleting?.person ?? ""} por ${deleting ? money(deleting.amount, cur) : ""}? Se borrarán también sus abonos.`}
         onConfirm={() => deleting && remove.mutate(deleting.id)}
         onCancel={() => setDeleting(null)}
+      />
+      <ConfirmDialog
+        open={deletingPayment !== null}
+        title="Eliminar pago"
+        message={`Eliminar este pago de ${deletingPayment ? money(deletingPayment.amount, cur) : ""}. El saldo del prestamo se recalculara.`}
+        onConfirm={() => activeSelectedLoan && deletingPayment && removePayment.mutate({ loanId: activeSelectedLoan.id, paymentId: deletingPayment.id })}
+        onCancel={() => setDeletingPayment(null)}
       />
     </div>
   );

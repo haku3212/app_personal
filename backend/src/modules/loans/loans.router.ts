@@ -58,6 +58,39 @@ function withTotals<T extends { amount: number; interestRate: number | null; pay
   };
 }
 
+async function updateLoanStatus(id: number) {
+  const loan = await prisma().loan.findUniqueOrThrow({
+    where: { id },
+    include: { payments: true },
+  });
+  const principalPaid = round2(loan.payments.reduce((s, p) => s + (p.principalAmount || p.amount), 0));
+  const interestPaid = round2(loan.payments.reduce((s, p) => s + (p.interestAmount ?? 0), 0));
+  const interestExpected = round2(loan.amount * ((loan.interestRate ?? 0) / 100));
+  return prisma().loan.update({
+    where: { id },
+    data: { status: statusFor(loan.amount, principalPaid, interestExpected, interestPaid) },
+    include: { payments: { orderBy: { date: "asc" } } },
+  });
+}
+
+async function validatePaymentTotals(
+  loan: { amount: number; interestRate: number | null; payments: { id: number; amount: number; principalAmount: number | null; interestAmount: number | null }[] },
+  principalAmount: number,
+  interestAmount: number,
+  ignorePaymentId?: number,
+) {
+  const otherPayments = loan.payments.filter((payment) => payment.id !== ignorePaymentId);
+  const paidSoFar = otherPayments.reduce((s, p) => s + (p.principalAmount || p.amount), 0);
+  const interestPaidSoFar = otherPayments.reduce((s, p) => s + (p.interestAmount ?? 0), 0);
+  const interestExpected = round2(loan.amount * ((loan.interestRate ?? 0) / 100));
+  if (paidSoFar + principalAmount > loan.amount + 0.009) {
+    throw new ApiError(400, "El pago a capital supera lo pendiente del prestamo");
+  }
+  if (interestPaidSoFar + interestAmount > interestExpected + 0.009) {
+    throw new ApiError(400, "El pago de interes supera el interes esperado");
+  }
+}
+
 export const loansRouter = Router();
 
 /** GET /api/loans?type&status&from&to&q */
@@ -151,15 +184,7 @@ loansRouter.post(
     });
     const principalAmount = round2(data.amount != null ? data.amount : data.principalAmount);
     const interestAmount = round2(data.interestAmount);
-    const paidSoFar = loan.payments.reduce((s, p) => s + (p.principalAmount || p.amount), 0);
-    const interestPaidSoFar = loan.payments.reduce((s, p) => s + (p.interestAmount ?? 0), 0);
-    const interestExpected = round2(loan.amount * ((loan.interestRate ?? 0) / 100));
-    if (paidSoFar + principalAmount > loan.amount + 0.009) {
-      throw new ApiError(400, "El pago a capital supera lo pendiente del prestamo");
-    }
-    if (interestPaidSoFar + interestAmount > interestExpected + 0.009) {
-      throw new ApiError(400, "El pago de interes supera el interes esperado");
-    }
+    await validatePaymentTotals(loan, principalAmount, interestAmount);
     await prisma().loanPayment.create({
       data: {
         date: data.date,
@@ -170,19 +195,53 @@ loansRouter.post(
         loanId: id,
       },
     });
-    const updated = await prisma().loan.update({
-      where: { id },
-      data: {
-        status: statusFor(
-          loan.amount,
-          round2(paidSoFar + principalAmount),
-          interestExpected,
-          round2(interestPaidSoFar + interestAmount),
-        ),
-      },
-      include: { payments: { orderBy: { date: "asc" } } },
-    });
+    const updated = await updateLoanStatus(id);
     res.status(201).json(withTotals(updated));
+  }),
+);
+
+loansRouter.put(
+  "/:id/payments/:paymentId",
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    const paymentId = parseId(req.params.paymentId);
+    const data = parseBody(paymentSchema, req.body);
+    await ensureOwned(req, "loan", id);
+    const loan = await prisma().loan.findUniqueOrThrow({
+      where: { id },
+      include: { payments: true },
+    });
+    const payment = loan.payments.find((item) => item.id === paymentId);
+    if (!payment) throw new ApiError(404, "Pago no encontrado");
+    const principalAmount = round2(data.amount != null ? data.amount : data.principalAmount);
+    const interestAmount = round2(data.interestAmount);
+    await validatePaymentTotals(loan, principalAmount, interestAmount, paymentId);
+    await prisma().loanPayment.update({
+      where: { id: paymentId },
+      data: {
+        date: data.date,
+        note: data.note,
+        amount: round2(principalAmount + interestAmount),
+        principalAmount,
+        interestAmount,
+      },
+    });
+    const updated = await updateLoanStatus(id);
+    res.json(withTotals(updated));
+  }),
+);
+
+loansRouter.delete(
+  "/:id/payments/:paymentId",
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    const paymentId = parseId(req.params.paymentId);
+    await ensureOwned(req, "loan", id);
+    const payment = await prisma().loanPayment.findFirst({ where: { id: paymentId, loanId: id } });
+    if (!payment) throw new ApiError(404, "Pago no encontrado");
+    await prisma().loanPayment.delete({ where: { id: paymentId } });
+    const updated = await updateLoanStatus(id);
+    res.json(withTotals(updated));
   }),
 );
 

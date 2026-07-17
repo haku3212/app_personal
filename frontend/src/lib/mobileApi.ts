@@ -246,6 +246,26 @@ function enrichLoan(db: MobileDb, loan: MobileDb["loans"][number]): Loan {
   return { ...loan, interestRate, payments, paid, principalPaid, interestPaid, interestExpected, remaining, interestRemaining, totalRemaining, status };
 }
 
+function validateLoanPayment(
+  db: MobileDb,
+  loan: MobileDb["loans"][number],
+  principalAmount: number,
+  interestAmount: number,
+  ignorePaymentId?: number,
+) {
+  const payments = db.loanPayments.filter((payment) => payment.loanId === loan.id && payment.id !== ignorePaymentId);
+  const principalPaid = payments.reduce((sum, payment) => sum + (payment.principalAmount || payment.amount), 0);
+  const interestPaid = payments.reduce((sum, payment) => sum + (payment.interestAmount || 0), 0);
+  const interestExpected = round2(loan.amount * ((loan.interestRate || 0) / 100));
+  if (principalAmount + interestAmount <= 0) throw new ApiClientError(400, "El pago debe ser mayor a 0");
+  if (principalPaid + principalAmount > loan.amount + 0.009) {
+    throw new ApiClientError(400, "El pago a capital supera lo pendiente del préstamo");
+  }
+  if (interestPaid + interestAmount > interestExpected + 0.009) {
+    throw new ApiClientError(400, "El pago de interés supera el interés esperado");
+  }
+}
+
 function enrichGoal(db: MobileDb, goal: MobileDb["goals"][number]): SavingGoal {
   const contributions = db.goalContributions
     .filter((c) => c.goalId === goal.id)
@@ -614,9 +634,12 @@ async function handlePost<T>(path: string, body?: unknown): Promise<T> {
       const loanId = parseId(loanPaymentMatch[1]);
       const principalAmount = Number(payload.amount ?? payload.principalAmount ?? 0);
       const interestAmount = Number(payload.interestAmount ?? 0);
+      const loan = db.loans.find((item) => item.id === loanId);
+      if (!loan) throw new ApiClientError(404, "Prestamo no encontrado");
+      validateLoanPayment(db, loan, principalAmount, interestAmount);
       const item: LoanPayment = { id: nextId(db, "loanPayments"), loanId, date: String(payload.date ?? todayInput()), amount: round2(principalAmount + interestAmount), principalAmount, interestAmount, note: (payload.note as string | null) ?? null };
       db.loanPayments.push(item);
-      return enrichLoan(db, db.loans.find((loan) => loan.id === loanId) as MobileDb["loans"][number]);
+      return enrichLoan(db, loan);
     }
     if (route === "/goals") {
       const item: MobileDb["goals"][number] = { id: nextId(db, "goals"), name: String(payload.name ?? ""), targetAmount: Number(payload.targetAmount ?? 0), targetDate: (payload.targetDate as string | null) ?? null, color: String(payload.color ?? "#8b5cf6"), icon: (payload.icon as string | null) ?? null };
@@ -649,6 +672,26 @@ async function handlePut<T>(path: string, body: unknown): Promise<T> {
     if (route === "/settings") {
       db.settings = { ...db.settings, ...payload };
       return db.settings;
+    }
+    const loanPaymentMatch = /^\/loans\/(\d+)\/payments\/(\d+)$/.exec(route);
+    if (loanPaymentMatch?.[1] && loanPaymentMatch[2]) {
+      const loanId = parseId(loanPaymentMatch[1]);
+      const paymentId = parseId(loanPaymentMatch[2]);
+      const item = db.loanPayments.find((payment) => payment.id === paymentId && payment.loanId === loanId);
+      if (!item) throw new ApiClientError(404, "Pago no encontrado");
+      const loan = db.loans.find((loanItem) => loanItem.id === loanId);
+      if (!loan) throw new ApiClientError(404, "Prestamo no encontrado");
+      const principalAmount = Number(payload.amount ?? payload.principalAmount ?? 0);
+      const interestAmount = Number(payload.interestAmount ?? 0);
+      validateLoanPayment(db, loan, principalAmount, interestAmount, paymentId);
+      Object.assign(item, {
+        date: String(payload.date ?? item.date),
+        amount: round2(principalAmount + interestAmount),
+        principalAmount,
+        interestAmount,
+        note: (payload.note as string | null) ?? null,
+      });
+      return enrichLoan(db, loan);
     }
     const match = /^\/([^/]+)\/(\d+)$/.exec(route);
     if (!match?.[1] || !match[2]) throw new ApiClientError(404, `Ruta movil no soportada: ${route}`);
@@ -735,6 +778,15 @@ async function handleDelete<T>(path: string): Promise<T> {
     return { ok: true } as T;
   }
   return withDb((db) => {
+    const loanPaymentMatch = /^\/loans\/(\d+)\/payments\/(\d+)$/.exec(route);
+    if (loanPaymentMatch?.[1] && loanPaymentMatch[2]) {
+      const loanId = parseId(loanPaymentMatch[1]);
+      const paymentId = parseId(loanPaymentMatch[2]);
+      const loan = db.loans.find((item) => item.id === loanId);
+      if (!loan) throw new ApiClientError(404, "Prestamo no encontrado");
+      db.loanPayments = db.loanPayments.filter((item) => !(item.id === paymentId && item.loanId === loanId));
+      return enrichLoan(db, loan);
+    }
     const match = /^\/([^/]+)\/(\d+)$/.exec(route);
     if (!match?.[1] || !match[2]) throw new ApiClientError(404, `Ruta movil no soportada: ${route}`);
     const [, entity, rawId] = match;
