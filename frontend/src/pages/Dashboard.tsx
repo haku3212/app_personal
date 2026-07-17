@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   Banknote,
+  CalendarCheck,
   Clock,
   HandCoins,
   PiggyBank,
@@ -33,14 +34,27 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { StorageStatus } from "@/components/shared/StorageStatus";
 import { useApiQuery } from "@/hooks/useCrud";
 import { useSettings } from "@/hooks/useSettings";
-import { hours, money } from "@/lib/format";
-import type { DashboardData } from "@/types";
+import { hours, inputDate, money } from "@/lib/format";
+import type { DashboardData, Expense, Income, WorkLog } from "@/types";
 
 /** Panel principal: tarjetas de resumen + gráficos de los últimos 6 meses. */
 export function Dashboard() {
   const { data, isLoading } = useApiQuery<DashboardData>(["dashboard"], "/dashboard");
   const { data: settings } = useSettings();
   const cur = settings?.currency ?? "Bs.";
+  const today = inputDate(new Date());
+  const { data: todayIncomes } = useApiQuery<{ items: Income[]; total: number }>(
+    ["dashboard", "today-incomes", today],
+    `/incomes?from=${today}&to=${today}`,
+  );
+  const { data: todayExpenses } = useApiQuery<{ items: Expense[]; total: number }>(
+    ["dashboard", "today-expenses", today],
+    `/expenses?from=${today}&to=${today}`,
+  );
+  const { data: todayWork } = useApiQuery<{ items: WorkLog[]; totalHours: number; totalPay: number }>(
+    ["dashboard", "today-work", today],
+    `/worklogs?from=${today}&to=${today}`,
+  );
 
   if (isLoading || !data) {
     return (
@@ -55,6 +69,10 @@ export function Dashboard() {
   const { cards, series, expensesByCategory } = data;
   const spentRatio = cards.incomeMonth > 0 ? Math.round((cards.expenseMonth / cards.incomeMonth) * 100) : 0;
   const topCategory = expensesByCategory[0];
+  const todayIncome = todayIncomes?.total ?? 0;
+  const todayExpense = todayExpenses?.total ?? 0;
+  const todayBalance = todayIncome - todayExpense;
+  const todayHours = todayWork?.totalHours ?? 0;
   const weeklyAvailable = cards.balanceMonth / Math.max(1, 4 - Math.floor(new Date().getDate() / 7));
   const health =
     cards.balanceMonth >= 0 && spentRatio <= 80
@@ -110,6 +128,46 @@ export function Dashboard() {
           Proximos pagos
         </Link>
       </div>
+
+      <Card className="mb-4 overflow-hidden">
+        <div className="grid gap-0 md:grid-cols-[1.1fr_2fr]">
+          <div className="border-b bg-muted/35 p-4 md:border-b-0 md:border-r">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CalendarCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Hoy</p>
+                <p className="text-xs text-muted-foreground">Tu corte rapido del dia</p>
+              </div>
+            </div>
+            <p className={`mt-4 text-2xl font-semibold tabular-nums ${todayBalance >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+              {money(todayBalance, cur)}
+            </p>
+            <p className="text-xs text-muted-foreground">balance de hoy</p>
+          </div>
+          <div className="grid grid-cols-2 gap-0 sm:grid-cols-4">
+            <div className="border-b border-r p-4 sm:border-b-0">
+              <p className="text-xs text-muted-foreground">Ingresos</p>
+              <p className="mt-1 text-base font-semibold tabular-nums text-emerald-500">{money(todayIncome, cur)}</p>
+            </div>
+            <div className="border-b p-4 sm:border-b-0 sm:border-r">
+              <p className="text-xs text-muted-foreground">Gastos</p>
+              <p className="mt-1 text-base font-semibold tabular-nums text-red-500">{money(todayExpense, cur)}</p>
+            </div>
+            <div className="border-r p-4">
+              <p className="text-xs text-muted-foreground">Horas</p>
+              <p className="mt-1 text-base font-semibold tabular-nums">{hours(todayHours)}</p>
+            </div>
+            <div className="p-4">
+              <p className="text-xs text-muted-foreground">Movimientos</p>
+              <p className="mt-1 text-base font-semibold tabular-nums">
+                {(todayIncomes?.items.length ?? 0) + (todayExpenses?.items.length ?? 0)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* Tarjetas principales */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">

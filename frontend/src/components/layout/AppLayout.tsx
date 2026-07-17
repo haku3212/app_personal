@@ -3,6 +3,8 @@ import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { SearchDialog } from "./SearchDialog";
+import { MobileNav } from "./MobileNav";
+import { QuickFab } from "./QuickFab";
 import { useApplyTheme, useSettings } from "@/hooks/useSettings";
 
 /** Estructura general: sidebar + topbar + contenido con animación de entrada. */
@@ -40,13 +42,15 @@ export function AppLayout() {
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
           onOpenSearch={() => setSearchOpen(true)}
         />
-        <main className="flex-1 p-3 sm:p-4 md:p-6">
+        <main className="flex-1 p-3 pb-24 sm:p-4 sm:pb-24 md:p-6">
           <div className="mx-auto max-w-6xl animate-fade-in">
             <Outlet />
           </div>
         </main>
       </div>
 
+      <QuickFab />
+      <MobileNav />
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
