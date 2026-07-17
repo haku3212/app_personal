@@ -52,7 +52,18 @@ interface MobileDb {
   incomes: Omit<Income, "category" | "account">[];
   expenses: Omit<Expense, "category" | "account">[];
   worklogs: WorkLog[];
-  loans: Omit<Loan, "payments" | "paid" | "remaining" | "status">[];
+  loans: Omit<
+    Loan,
+    | "payments"
+    | "paid"
+    | "principalPaid"
+    | "interestPaid"
+    | "interestExpected"
+    | "remaining"
+    | "interestRemaining"
+    | "totalRemaining"
+    | "status"
+  >[];
   loanPayments: LoanPayment[];
   goals: Omit<SavingGoal, "contributions" | "currentAmount" | "progress" | "achieved">[];
   goalContributions: GoalContribution[];
@@ -215,11 +226,24 @@ function enrichExpense(db: MobileDb, expense: Omit<Expense, "category" | "accoun
 }
 
 function enrichLoan(db: MobileDb, loan: MobileDb["loans"][number]): Loan {
-  const payments = db.loanPayments.filter((p) => p.loanId === loan.id).sort((a, b) => b.date.localeCompare(a.date));
-  const paid = round2(payments.reduce((sum, payment) => sum + payment.amount, 0));
-  const remaining = round2(Math.max(0, loan.amount - paid));
-  const status: Loan["status"] = remaining <= 0 ? "PAID" : paid > 0 ? "PARTIAL" : "PENDING";
-  return { ...loan, payments, paid, remaining, status };
+  const payments = db.loanPayments
+    .filter((p) => p.loanId === loan.id)
+    .map((payment) => ({
+      ...payment,
+      principalAmount: payment.principalAmount || payment.amount,
+      interestAmount: payment.interestAmount || 0,
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const interestRate = loan.interestRate || 0;
+  const principalPaid = round2(payments.reduce((sum, payment) => sum + payment.principalAmount, 0));
+  const interestPaid = round2(payments.reduce((sum, payment) => sum + payment.interestAmount, 0));
+  const paid = round2(principalPaid + interestPaid);
+  const interestExpected = round2(loan.amount * (interestRate / 100));
+  const remaining = round2(Math.max(0, loan.amount - principalPaid));
+  const interestRemaining = round2(Math.max(0, interestExpected - interestPaid));
+  const totalRemaining = round2(remaining + interestRemaining);
+  const status: Loan["status"] = totalRemaining <= 0 ? "PAID" : paid > 0 ? "PARTIAL" : "PENDING";
+  return { ...loan, interestRate, payments, paid, principalPaid, interestPaid, interestExpected, remaining, interestRemaining, totalRemaining, status };
 }
 
 function enrichGoal(db: MobileDb, goal: MobileDb["goals"][number]): SavingGoal {
@@ -342,8 +366,8 @@ function loanSummary(db: MobileDb): LoanSummary {
   const loans = db.loans.map((loan) => enrichLoan(db, loan));
   const active = loans.filter((loan) => loan.status !== "PAID");
   return {
-    owedToMe: round2(active.filter((loan) => loan.type === "LENT").reduce((sum, loan) => sum + loan.remaining, 0)),
-    iOwe: round2(active.filter((loan) => loan.type === "BORROWED").reduce((sum, loan) => sum + loan.remaining, 0)),
+    owedToMe: round2(active.filter((loan) => loan.type === "LENT").reduce((sum, loan) => sum + loan.totalRemaining, 0)),
+    iOwe: round2(active.filter((loan) => loan.type === "BORROWED").reduce((sum, loan) => sum + loan.totalRemaining, 0)),
     totalLoans: loans.length,
     activeLoans: active.length,
     lentTotal: round2(loans.filter((loan) => loan.type === "LENT").reduce((sum, loan) => sum + loan.amount, 0)),
@@ -581,14 +605,16 @@ async function handlePost<T>(path: string, body?: unknown): Promise<T> {
       return item;
     }
     if (route === "/loans") {
-      const item: MobileDb["loans"][number] = { id: nextId(db, "loans"), type: payload.type as Loan["type"], person: String(payload.person ?? ""), amount: Number(payload.amount ?? 0), date: String(payload.date ?? todayInput()), dueDate: (payload.dueDate as string | null) ?? null, notes: (payload.notes as string | null) ?? null };
+      const item: MobileDb["loans"][number] = { id: nextId(db, "loans"), type: payload.type as Loan["type"], person: String(payload.person ?? ""), amount: Number(payload.amount ?? 0), interestRate: Number(payload.interestRate ?? 0), date: String(payload.date ?? todayInput()), dueDate: (payload.dueDate as string | null) ?? null, notes: (payload.notes as string | null) ?? null };
       db.loans.push(item);
       return enrichLoan(db, item);
     }
     const loanPaymentMatch = /^\/loans\/(\d+)\/payments$/.exec(route);
     if (loanPaymentMatch?.[1]) {
       const loanId = parseId(loanPaymentMatch[1]);
-      const item: LoanPayment = { id: nextId(db, "loanPayments"), loanId, date: String(payload.date ?? todayInput()), amount: Number(payload.amount ?? 0), note: (payload.note as string | null) ?? null };
+      const principalAmount = Number(payload.amount ?? payload.principalAmount ?? 0);
+      const interestAmount = Number(payload.interestAmount ?? 0);
+      const item: LoanPayment = { id: nextId(db, "loanPayments"), loanId, date: String(payload.date ?? todayInput()), amount: round2(principalAmount + interestAmount), principalAmount, interestAmount, note: (payload.note as string | null) ?? null };
       db.loanPayments.push(item);
       return enrichLoan(db, db.loans.find((loan) => loan.id === loanId) as MobileDb["loans"][number]);
     }

@@ -77,6 +77,8 @@ export interface LoanPayment {
   loanId: number;
   date: string;
   amount: number;
+  principalAmount: number;
+  interestAmount: number;
   note: string | null;
 }
 
@@ -85,13 +87,19 @@ export interface Loan {
   type: "LENT" | "BORROWED";
   person: string;
   amount: number;
+  interestRate: number;
   date: string;
   dueDate: string | null;
   status: "PENDING" | "PARTIAL" | "PAID";
   notes: string | null;
   payments: LoanPayment[];
   paid: number;
+  principalPaid: number;
+  interestPaid: number;
+  interestExpected: number;
   remaining: number;
+  interestRemaining: number;
+  totalRemaining: number;
 }
 
 export interface GoalContribution {

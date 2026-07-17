@@ -171,6 +171,7 @@ model Loan {
   type      String // LENT | BORROWED
   person    String
   amount    Float
+  interestRate Float?
   date      DateTime
   dueDate   DateTime?
   status    String        @default("PENDING") // PENDING | PARTIAL | PAID
@@ -190,6 +191,8 @@ model LoanPayment {
   loan   Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
   date   DateTime
   amount Float
+  principalAmount Float?
+  interestAmount  Float?
   note   String?
 }
 

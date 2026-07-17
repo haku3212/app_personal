@@ -29,6 +29,7 @@ interface FormState {
   type: Loan["type"];
   person: string;
   amount: string;
+  interestRate: string;
   date: string;
   dueDate: string;
   notes: string;
@@ -38,6 +39,7 @@ const emptyForm = (): FormState => ({
   type: "LENT",
   person: "",
   amount: "",
+  interestRate: "",
   date: inputDate(),
   dueDate: "",
   notes: "",
@@ -66,7 +68,9 @@ export function Loans() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [deleting, setDeleting] = useState<Loan | null>(null);
   const [paying, setPaying] = useState<Loan | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentPrincipal, setPaymentPrincipal] = useState("");
+  const [paymentInterest, setPaymentInterest] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
   const [error, setError] = useState("");
 
   const invalidate = [["loans"], ...GLOBAL_KEYS];
@@ -81,12 +85,14 @@ export function Loans() {
     () => setDeleting(null),
   );
   const addPayment = useApiMutation(
-    ({ id, amount }: { id: number; amount: number }) =>
-      api.post(`/loans/${id}/payments`, { date: inputDate(), amount }),
+    ({ id, principalAmount, interestAmount, note }: { id: number; principalAmount: number; interestAmount: number; note?: string }) =>
+      api.post(`/loans/${id}/payments`, { date: inputDate(), principalAmount, interestAmount, note: note || null }),
     invalidate,
     () => {
       setPaying(null);
-      setPaymentAmount("");
+      setPaymentPrincipal("");
+      setPaymentInterest("");
+      setPaymentNote("");
     },
   );
 
@@ -103,6 +109,7 @@ export function Loans() {
       type: loan.type,
       person: loan.person,
       amount: String(loan.amount),
+      interestRate: loan.interestRate ? String(loan.interestRate) : "",
       date: inputDate(loan.date),
       dueDate: loan.dueDate ? inputDate(loan.dueDate) : "",
       notes: loan.notes ?? "",
@@ -122,6 +129,7 @@ export function Loans() {
         type: form.type,
         person: form.person.trim(),
         amount,
+        interestRate: Number(form.interestRate || 0),
         date: form.date,
         dueDate: form.dueDate || null,
         notes: form.notes || null,
@@ -146,9 +154,20 @@ export function Loans() {
       header: "Progreso",
       cell: (r) => (
         <div className="min-w-28">
-          <Progress value={(r.paid / r.amount) * 100} />
+          <Progress value={(r.principalPaid / r.amount) * 100} />
           <p className="mt-1 text-[10px] text-muted-foreground">
-            {money(r.paid, cur)} de {money(r.amount, cur)}
+            Capital: {money(r.principalPaid, cur)} de {money(r.amount, cur)}
+          </p>
+        </div>
+      ),
+    },
+    {
+      header: "Interes",
+      cell: (r) => (
+        <div className="min-w-28 text-xs">
+          <p className="font-medium">{r.interestRate}%</p>
+          <p className="text-muted-foreground">
+            {money(r.interestPaid, cur)} de {money(r.interestExpected, cur)}
           </p>
         </div>
       ),
@@ -159,15 +178,29 @@ export function Loans() {
     },
     {
       header: "Pendiente",
-      cell: (r) => <span className="font-semibold tabular-nums">{money(r.remaining, cur)}</span>,
+      cell: (r) => (
+        <div className="text-right">
+          <p className="font-semibold tabular-nums">{money(r.totalRemaining, cur)}</p>
+          {r.interestRemaining > 0 && <p className="text-[10px] text-muted-foreground">incl. {money(r.interestRemaining, cur)} interes</p>}
+        </div>
+      ),
       className: "text-right",
     },
     {
       header: "",
       cell: (r) =>
         r.status !== "PAID" ? (
-          <Button size="sm" variant="outline" onClick={() => setPaying(r)}>
-            Abonar
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setPaying(r);
+              setPaymentPrincipal("");
+              setPaymentInterest("");
+              setPaymentNote("");
+            }}
+          >
+            {r.type === "LENT" ? "Cobrar" : "Pagar"}
           </Button>
         ) : null,
     },
@@ -261,6 +294,17 @@ export function Loans() {
             />
           </div>
           <div>
+            <Label>Interes (%)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Ej. 10"
+              value={form.interestRate}
+              onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
+            />
+          </div>
+          <div>
             <Label>Fecha</Label>
             <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           </div>
@@ -288,19 +332,37 @@ export function Loans() {
       <Dialog
         open={paying !== null}
         onClose={() => setPaying(null)}
-        title={`Abonar a ${paying?.person ?? ""}`}
-        description={paying ? `Pendiente: ${money(paying.remaining, cur)}` : undefined}
+        title={`${paying?.type === "LENT" ? "Cobrar" : "Pagar"} a ${paying?.person ?? ""}`}
+        description={paying ? `Capital pendiente: ${money(paying.remaining, cur)} | Interes pendiente: ${money(paying.interestRemaining, cur)}` : undefined}
         width="max-w-sm"
       >
-        <Label>Monto del abono ({cur})</Label>
-        <Input
-          type="number"
-          min="0"
-          step="0.01"
-          autoFocus
-          value={paymentAmount}
-          onChange={(e) => setPaymentAmount(e.target.value)}
-        />
+        <div className="grid gap-3">
+          <div>
+            <Label>Pago a capital ({cur})</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              autoFocus
+              value={paymentPrincipal}
+              onChange={(e) => setPaymentPrincipal(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Pago de interes ({cur})</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={paymentInterest}
+              onChange={(e) => setPaymentInterest(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Nota</Label>
+            <Textarea value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} />
+          </div>
+        </div>
         {addPayment.isError && (
           <p className="mt-2 text-xs text-red-500">{(addPayment.error as Error).message}</p>
         )}
@@ -309,10 +371,18 @@ export function Loans() {
             Cancelar
           </Button>
           <Button
-            disabled={addPayment.isPending || !Number(paymentAmount)}
-            onClick={() => paying && addPayment.mutate({ id: paying.id, amount: Number(paymentAmount) })}
+            disabled={addPayment.isPending || Number(paymentPrincipal || 0) + Number(paymentInterest || 0) <= 0}
+            onClick={() =>
+              paying &&
+              addPayment.mutate({
+                id: paying.id,
+                principalAmount: Number(paymentPrincipal || 0),
+                interestAmount: Number(paymentInterest || 0),
+                note: paymentNote,
+              })
+            }
           >
-            Registrar abono
+            Registrar {paying?.type === "LENT" ? "cobro" : "pago"}
           </Button>
         </div>
       </Dialog>
